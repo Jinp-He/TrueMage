@@ -2,14 +2,12 @@ extends Node
 ## 自动加载单例：保存一整局（连续对决 + 商店）的状态，并负责切换场景。
 
 const BATTLE_SCENE := "res://scenes/battle.tscn"
-const SHOP_SCENE := "res://scenes/shop.tscn"
+const SPELL_SHOP_SCENE := "res://scenes/spell_shop.tscn"
+const REST_SCENE := "res://scenes/rest.tscn"
 
 const MAX_LENGTH_CAP := 9
 const SPELL_SLOT_CAP := 5
-const BUILD_TIME_CAP := 16.0
-const FRAGMENT_LIFE_CAP := 7.5
-const FRAGMENT_POOL_MIN := 4
-const FRAGMENT_POOL_MAX := 21
+const OPTIONS_MAX := 5
 
 ## 敌人按顺序出场；intents 循环使用。type 为 "attack" 或 "block"。
 const ENEMIES := [
@@ -28,8 +26,10 @@ var spells: Array[SpellData]
 var spell_slots: int
 var max_length: int
 var build_time: float
-var fragment_life: float
+## 脑海区每批浮现的选项数在 [min_options, OPTIONS_MAX] 之间随机。
+var min_options: int
 var fragment_pool: Array[String]
+var relics: Array[String]
 
 
 func _ready() -> void:
@@ -48,9 +48,10 @@ func new_run() -> void:
 	spells = [SpellData.by_id("fireball"), SpellData.by_id("armor"), SpellData.by_id("spark")]
 	spell_slots = 4
 	max_length = 7
-	build_time = 10.0
-	fragment_life = 4.5
+	build_time = 30.0
+	min_options = 3
 	fragment_pool = ["a", "a", "b", "c", "d", "aa", "ab", "bc", "cd"]
+	relics = []
 
 
 func current_enemy() -> Dictionary:
@@ -69,6 +70,10 @@ func has_spell(spell_id: String) -> bool:
 	return spells.any(func(spell: SpellData) -> bool: return spell.id == spell_id)
 
 
+func has_relic(relic_id: String) -> bool:
+	return relic_id in relics
+
+
 func heal(amount: int) -> void:
 	hp = mini(max_hp, hp + amount)
 
@@ -77,5 +82,10 @@ func go_to_battle() -> void:
 	get_tree().change_scene_to_file(BATTLE_SCENE)
 
 
-func go_to_shop() -> void:
-	get_tree().change_scene_to_file(SHOP_SCENE)
+## 对决之间咒语商店和休息处轮流出现：第 1 场后是咒语商店，第 2 场后是休息处，以此类推。
+func next_stop_is_spell_shop() -> bool:
+	return duel_index % 2 == 1
+
+
+func go_to_intermission() -> void:
+	get_tree().change_scene_to_file(SPELL_SHOP_SCENE if next_stop_is_spell_shop() else REST_SCENE)

@@ -44,7 +44,11 @@ func _build(tag: String) -> void:
 	pattern.text = "咒语： [b]%s[/b]" % UiKit.rune_bbcode(spell.pattern)
 	add_child(UiKit.place(pattern, Rect2(text_x, top + line, text_w, line * 1.2)))
 
-	var effect := UiKit.label(spell.effect_text(), int(23 * k))
+	# 强化后效果描述可能变长，缩小字号直到放得下。
+	var effect_size := int(23 * k)
+	while effect_size > 12 and UiKit.text_font().get_string_size(spell.effect_text(), HORIZONTAL_ALIGNMENT_LEFT, -1, effect_size).x > text_w - 40.0:
+		effect_size -= 1
+	var effect := UiKit.label(spell.effect_text(), effect_size)
 	add_child(UiKit.place(effect, Rect2(text_x, top + line * 2.1, text_w, line)))
 
 	if tag != "":

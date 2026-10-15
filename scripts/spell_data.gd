@@ -1,6 +1,14 @@
 class_name SpellData
 extends RefCounted
 ## 一个法术：咒式（符文序列）加上被识别时触发的效果。
+## 咒式可以在咒语商店里强化：追加火符文（a、b）提高伤害，追加盾符文（c、d）增加护盾，
+## 移除符文让咒式更好拼，但效果随之降低。
+
+const FIRE_RUNES := ["a", "b"]
+const RUNES := ["a", "b", "c", "d"]
+## 每追加或移除一个符文，对应效果变化的数值。
+const RUNE_POWER := 3
+const MIN_PATTERN_LENGTH := 2
 
 var id: String
 var name: String
@@ -23,8 +31,42 @@ func _init(p_id: String, p_name: String, p_pattern: String, effects: Dictionary,
 	cost = p_cost
 
 
+static func is_fire(rune: String) -> bool:
+	return rune in FIRE_RUNES
+
+
 func is_attack() -> bool:
 	return damage > 0
+
+
+func copy() -> SpellData:
+	return SpellData.new(id, name, pattern, {"damage": damage, "shield": shield, "heal": heal}, icon, cost)
+
+
+## 在咒式末尾追加一个符文。
+func add_rune(rune: String) -> void:
+	pattern += rune
+	if is_fire(rune):
+		damage += RUNE_POWER
+	else:
+		shield += RUNE_POWER
+
+
+## 移除咒式里第 index 个符文。优先削减该符文对应的效果；法术没有这项效果时削减它的主效果。
+## 已有的效果最低保留 1 点。
+func remove_rune(index: int) -> void:
+	var rune := pattern[index]
+	pattern = pattern.erase(index)
+	var key := "damage" if is_fire(rune) else "shield"
+	if get(key) == 0:
+		key = main_effect()
+	set(key, maxi(1, get(key) - RUNE_POWER))
+
+
+func main_effect() -> String:
+	if damage >= shield and damage >= heal:
+		return "damage"
+	return "shield" if shield >= heal else "heal"
 
 
 func effect_text() -> String:
@@ -36,6 +78,15 @@ func effect_text() -> String:
 	if heal > 0:
 		parts.append("恢复 %d 点生命" % heal)
 	return "，".join(parts)
+
+
+## 和另一个版本相比，哪些效果变了，例如“伤害 8→11”。
+func change_text(before: SpellData) -> String:
+	var parts: PackedStringArray = []
+	for entry: Array in [["伤害", before.damage, damage], ["护盾", before.shield, shield], ["治疗", before.heal, heal]]:
+		if entry[1] != entry[2]:
+			parts.append("%s %d→%d" % entry)
+	return "  ".join(parts)
 
 
 ## 咒语区括号上的短标签，例如“火球 · 8”。

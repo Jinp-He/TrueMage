@@ -1,32 +1,24 @@
 class_name FragmentCloud
 extends Control
-## 脑海区里的一块咒语碎片：浮现、停留一会儿、然后消散。点击即被选中。
+## 脑海区里的一个碎片选项。一批选项同时浮现，选中其中一块后其余的消散，再浮现下一批。
 
 signal picked(cloud: FragmentCloud)
 
-const FADING_AT := 0.22
-
 var text: String
-var life: float
-var max_life: float
 var base_position: Vector2
 var frozen := false
 
 var _cloud: TextureRect
-var _label: Label
-var _bar: UiBar
 var _bob_phase: float
 var _age := 0.0
 var _available := true
 var _gone := false
 
 
-static func create(p_text: String, p_life: float) -> FragmentCloud:
+static func create(p_text: String) -> FragmentCloud:
 	var cloud := FragmentCloud.new()
 	cloud.text = p_text
-	cloud.life = p_life
-	cloud.max_life = p_life
-	cloud.size = Vector2(150, 108) if p_text.length() == 1 else Vector2(128 + 38 * p_text.length(), 112)
+	cloud.size = Vector2(150, 92) if p_text.length() == 1 else Vector2(128 + 38 * p_text.length(), 96)
 	cloud.pivot_offset = cloud.size / 2.0
 	cloud._bob_phase = randf() * TAU
 	cloud._build()
@@ -38,9 +30,28 @@ func set_available(on: bool) -> void:
 	_cloud.modulate = Color.WHITE if on else Color(0.55, 0.55, 0.62)
 
 
-## 被选中后飞散。
+## 浮现动画；delay 用来让同一批选项依次冒出来。
+func appear(delay: float) -> void:
+	modulate.a = 0.0
+	scale = Vector2(0.7, 0.7)
+	var tween := create_tween().set_parallel()
+	tween.tween_property(self, "modulate:a", 1.0, 0.25).set_delay(delay)
+	tween.tween_property(self, "scale", Vector2.ONE, 0.25).set_delay(delay) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## 被选中：放大后飞散。
 func consume() -> void:
 	_leave(Vector2(1.25, 1.25), 0.18)
+
+
+## 没被选中：化作烟雾消散。
+func dismiss() -> void:
+	if _gone:
+		return
+	_cloud.texture = UiKit.tex("cloud_fading")
+	_cloud.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_leave(Vector2(0.9, 0.9), 0.3)
 
 
 ## 句子放不下这块碎片时左右晃一下。
@@ -53,22 +64,11 @@ func reject() -> void:
 func _build() -> void:
 	_cloud = UiKit.sprite(_cloud_piece())
 	_cloud.stretch_mode = TextureRect.STRETCH_SCALE
-	_cloud.size = Vector2(size.x, size.y - 22.0)
+	_cloud.size = size
 	add_child(_cloud)
 
-	_label = UiKit.centered(UiKit.label(text, 50, UiKit.INK, UiKit.rune_font()))
-	add_child(UiKit.place(_label, Rect2(0, -4, size.x, size.y - 22.0)))
-
-	var bar_size := Vector2(minf(size.x - 40.0, 124.0), 20)
-	_bar = UiBar.create("bar_small_frame", "bar_small_fill_blue", bar_size, Vector2(7, 5))
-	_bar.position = Vector2((size.x - bar_size.x) / 2.0, size.y - 22.0)
-	add_child(_bar)
-
-	modulate.a = 0.0
-	scale = Vector2(0.7, 0.7)
-	var tween := create_tween().set_parallel()
-	tween.tween_property(self, "modulate:a", 1.0, 0.25)
-	tween.tween_property(self, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var label := UiKit.centered(UiKit.label(text, 50, UiKit.INK, UiKit.rune_font()))
+	add_child(UiKit.place(label, Rect2(0, -4, size.x, size.y)))
 
 
 func _cloud_piece() -> String:
@@ -88,18 +88,6 @@ func _process(delta: float) -> void:
 		return
 	_age += delta
 	position = base_position + Vector2(0, sin(_age * 1.7 + _bob_phase) * 5.0)
-	if frozen:
-		return
-	life -= delta
-	var left := life / max_life
-	_bar.ratio = left
-	_bar.set_fill("bar_small_fill_blue" if left > 0.6 else ("bar_small_fill_yellow" if left > 0.3 else "bar_small_fill_red"))
-	if left < FADING_AT:
-		_cloud.texture = UiKit.tex("cloud_fading")
-		_cloud.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		modulate.a = 0.45 + 0.55 * (left / FADING_AT)
-	if life <= 0.0:
-		_leave(Vector2(1.0, 1.0), 0.2)
 
 
 func _gui_input(event: InputEvent) -> void:

@@ -17,8 +17,8 @@ const TILE_AREA_WIDTH := 880.0
 const BRACKET_TOP := 478.0
 const BRACKET_AREA_HEIGHT := 100.0
 const MIND_RECT := Rect2(16, 640, 1218, 292)
-const SPAWN_INTERVAL := 0.7
-const MAX_CLOUDS := 7
+## 换一批选项要付出的构句时间。
+const REROLL_TIME_COST := 3.0
 
 var _phase := Phase.BUILD
 var _turn := 0
@@ -28,7 +28,6 @@ var _intent: Array
 var _sentence := ""
 var _matches: Array[Dictionary] = []
 var _time_left := 0.0
-var _spawn_in := 0.0
 
 var _stage: TextureRect
 var _player_hp_bar: UiBar
@@ -47,6 +46,7 @@ var _stats_label: RichTextLabel
 var _cast_button: TextureButton
 var _cast_hover: TextureRect
 var _cloud_layer: Control
+var _reroll_button: Button
 var _cards: Array[SpellCard] = []
 var _popup_layer: Control
 
@@ -72,11 +72,6 @@ func _process(delta: float) -> void:
 	_refresh_timer()
 	if _time_left <= 0.0:
 		_cast()
-		return
-	_spawn_in -= delta
-	if _spawn_in <= 0.0:
-		_spawn_in = SPAWN_INTERVAL
-		_spawn_cloud()
 
 
 # ---------------------------------------------------------------- 回合流程
@@ -87,12 +82,11 @@ func _start_turn() -> void:
 	_intent = intents[(_turn - 1) % intents.size()]
 	_sentence = ""
 	_time_left = Game.build_time
-	_spawn_in = 0.0
-	UiKit.clear_children(_cloud_layer)
-	for i in 3:
-		_spawn_cloud()
 	_phase = Phase.BUILD
+	UiKit.clear_children(_cloud_layer)
+	_offer_wave()
 	_cast_button.disabled = false
+	_reroll_button.disabled = false
 	_refresh_status()
 	_refresh_sentence()
 	_refresh_timer()
@@ -106,6 +100,7 @@ func _on_cloud_picked(cloud: FragmentCloud) -> void:
 		return
 	_sentence += cloud.text
 	cloud.consume()
+	_offer_wave()
 	_refresh_sentence()
 
 
@@ -115,6 +110,7 @@ func _cast() -> void:
 	_phase = Phase.RESOLVE
 	_cast_button.disabled = true
 	_cast_hover.visible = false
+	_reroll_button.disabled = true
 	for cloud: FragmentCloud in _cloud_layer.get_children():
 		cloud.frozen = true
 		cloud.modulate.a = minf(cloud.modulate.a, 0.4)
@@ -156,15 +152,32 @@ func _cast() -> void:
 	_start_turn()
 
 
-## 当前句子释放后的结果预估：伤害、护盾、治疗、实际打出的伤害和预计受伤。
+## 当前句子释放后的结果预估：伤害、护盾、治疗、实际打出的伤害和预计受伤。遗物加成也算在内。
 func _preview() -> Dictionary:
 	var result := SpellMatcher.totals(_matches)
+	if Game.has_relic("ember_ring"):
+		result.damage += _matches.filter(func(m: Dictionary) -> bool: return (m.spell as SpellData).is_attack()).size()
+	if Game.has_relic("crystal"):
+		result.damage += 2 * _shared_rune_count()
+	if Game.has_relic("echo") and _sentence.length() == Game.max_length and not _matches.is_empty():
+		result.damage += 5
+	if Game.has_relic("bracer"):
+		result.shield += 3
 	var enemy_block: int = _intent[1] if _intent[0] == "block" else 0
 	result.dealt = maxi(0, result.damage - enemy_block)
 	result.taken = 0
 	if _intent[0] == "attack" and result.dealt < _enemy_hp:
 		result.taken = maxi(0, _intent[1] - result.shield)
 	return result
+
+
+func _shared_rune_count() -> int:
+	var count := 0
+	for i in _sentence.length():
+		var covering := _matches.filter(func(m: Dictionary) -> bool: return i >= m.start and i < m.start + m.length)
+		if covering.size() >= 2:
+			count += 1
+	return count
 
 
 func _finish(won: bool) -> void:
@@ -180,9 +193,9 @@ func _finish(won: bool) -> void:
 	else:
 		var reward := Game.duel_reward()
 		Game.gold += reward
-		Game.heal(6)
 		Game.duel_index += 1
-		_show_result("胜利！", "获得 %d 金币，恢复 6 点生命。" % reward, "进入商店", Game.go_to_shop)
+		var stop := "前往咒语商店" if Game.next_stop_is_spell_shop() else "前往休息处"
+		_show_result("胜利！", "获得 %d 金币。" % reward, stop, Game.go_to_intermission)
 
 
 # ---------------------------------------------------------------- 刷新显示
@@ -292,34 +305,50 @@ func _rebuild_brackets() -> void:
 
 # ---------------------------------------------------------------- 脑海碎片
 
-func _spawn_cloud() -> void:
-	if _cloud_layer.get_child_count() >= MAX_CLOUDS:
-		return
-	var cloud := FragmentCloud.create(Game.fragment_pool.pick_random(), Game.fragment_life * randf_range(0.85, 1.2))
-	var spot := _free_spot(cloud.size)
-	if spot.x < 0:
-		cloud.free()
-		return
-	cloud.base_position = spot
-	cloud.position = spot
-	cloud.picked.connect(_on_cloud_picked)
-	_cloud_layer.add_child(cloud)
-	cloud.set_available(cloud.text.length() <= Game.max_length - _sentence.length())
+## 让上一批剩下的选项消散，再浮现新的一批 3～5 个选项（尽量不重复）。
+func _offer_wave() -> void:
+	for old: FragmentCloud in _cloud_layer.get_children():
+		old.dismiss()
+	var count := randi_range(Game.min_options, Game.OPTIONS_MAX)
+	# 按碎片来源里的份数加权抽取，同一批里不重复。
+	var remaining: Array = Game.fragment_pool.duplicate()
+	var options: Array = []
+	while options.size() < count and not remaining.is_empty():
+		var fragment: String = remaining.pick_random()
+		options.append(fragment)
+		while fragment in remaining:
+			remaining.erase(fragment)
+	while options.size() < count:
+		options.append(Game.fragment_pool.pick_random())
+
+	var clouds: Array[FragmentCloud] = []
+	var total_width := 0.0
+	for option: String in options:
+		var cloud := FragmentCloud.create(option)
+		clouds.append(cloud)
+		total_width += cloud.size.x
+	var gap := clampf((MIND_RECT.size.x - 120.0 - total_width) / maxf(count - 1, 1), 8.0, 48.0)
+	var x := (MIND_RECT.size.x - total_width - gap * (count - 1)) / 2.0
+	var room := Game.max_length - _sentence.length()
+	for i in clouds.size():
+		var cloud := clouds[i]
+		var y := (MIND_RECT.size.y - cloud.size.y) / 2.0 + (-22.0 if i % 2 == 0 else 22.0)
+		cloud.base_position = Vector2(x, y)
+		cloud.position = cloud.base_position
+		cloud.picked.connect(_on_cloud_picked)
+		_cloud_layer.add_child(cloud)
+		cloud.set_available(cloud.text.length() <= room)
+		cloud.appear(0.12 + 0.06 * i)
+		x += cloud.size.x + gap
 
 
-func _free_spot(cloud_size: Vector2) -> Vector2:
-	var area := Rect2(Vector2(250, 30), MIND_RECT.size - Vector2(280, 50) - cloud_size)
-	for attempt in 16:
-		var spot := area.position + Vector2(randf() * area.size.x, randf() * area.size.y)
-		var candidate := Rect2(spot, cloud_size).grow(8)
-		var blocked := false
-		for other: FragmentCloud in _cloud_layer.get_children():
-			if candidate.intersects(Rect2(other.base_position, other.size)):
-				blocked = true
-				break
-		if not blocked:
-			return spot
-	return Vector2(-1, -1)
+func _reroll() -> void:
+	if _phase != Phase.BUILD:
+		return
+	if not Game.has_relic("glove"):
+		_time_left -= REROLL_TIME_COST
+		_popup("-%d 秒" % REROLL_TIME_COST, Vector2(1100, 840), UiKit.CREAM, 34)
+	_offer_wave()
 
 
 # ---------------------------------------------------------------- 搭建界面
@@ -369,6 +398,14 @@ func _build_stage() -> void:
 	_stage.add_child(UiKit.place(_intent_icon, Rect2(1170, 114, 42, 42)))
 	_intent_label = UiKit.rich(27, UiKit.CREAM)
 	_stage.add_child(UiKit.place(_intent_label, Rect2(1222, 117, 230, 40)))
+
+	# 已拥有的遗物排在玩家血条下方，悬停看说明。
+	for i in Game.relics.size():
+		var relic := RelicData.by_id(Game.relics[i])
+		var badge := UiKit.sprite(relic.icon)
+		badge.mouse_filter = Control.MOUSE_FILTER_STOP
+		badge.tooltip_text = "%s：%s" % [relic.name, relic.description]
+		_stage.add_child(UiKit.place(badge, Rect2(60 + 46 * i, 78, 40, 40)))
 
 
 func _build_spell_area() -> void:
@@ -438,6 +475,10 @@ func _build_mind_area() -> void:
 	var frame := UiKit.nine("frame_starry", 34)
 	add_child(UiKit.place(frame, Rect2(8, 634, 1234, 304)))
 	add_child(UiKit.place(UiKit.sprite("banner_mind"), Rect2(22, 630, 244, 66)))
+
+	_reroll_button = UiKit.button("换一批（免费）" if Game.has_relic("glove") else "换一批（-%d 秒）" % REROLL_TIME_COST, 20)
+	_reroll_button.pressed.connect(_reroll)
+	add_child(UiKit.place(_reroll_button, Rect2(1036, 876, 186, 44)))
 
 
 func _build_spell_list() -> void:
