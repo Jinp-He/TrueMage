@@ -129,6 +129,9 @@ func _cast() -> void:
 	if result.heal > 0:
 		Game.heal(result.heal)
 		_popup("生命 +%d" % result.heal, PLAYER_ANCHOR + Vector2(0, 30), UiKit.GREEN.lightened(0.4))
+	if result.gold > 0:
+		Game.gold += result.gold
+		_popup("金币 +%d" % result.gold, PLAYER_ANCHOR + Vector2(0, 100), UiKit.GOLD.lightened(0.4))
 	_refresh_status()
 	await get_tree().create_timer(1.0).timeout
 
@@ -164,7 +167,7 @@ func _preview() -> Dictionary:
 	if Game.has_relic("bracer"):
 		result.shield += 3
 	var enemy_block: int = _intent[1] if _intent[0] == "block" else 0
-	result.dealt = maxi(0, result.damage - enemy_block)
+	result.dealt = maxi(0, result.damage - result.pierce - enemy_block) + result.pierce
 	result.taken = 0
 	if _intent[0] == "attack" and result.dealt < _enemy_hp:
 		result.taken = maxi(0, _intent[1] - result.shield)
@@ -232,6 +235,8 @@ func _refresh_sentence() -> void:
 		UiKit.RED.to_html(false), result.dealt, UiKit.BLUE.to_html(false), result.shield]
 	if result.heal > 0:
 		stats += "      治疗 [color=#%s]%d[/color]" % [UiKit.GREEN.to_html(false), result.heal]
+	if result.gold > 0:
+		stats += "      金币 [color=#%s]%d[/color]" % [UiKit.GOLD.to_html(false), result.gold]
 	stats += "      预计受伤 [color=#%s]%d[/color]" % [UiKit.RED.to_html(false), result.taken]
 	_stats_label.text = "[center]%s[/center]" % stats
 
@@ -275,7 +280,7 @@ func _tile_piece(index: int, rune: String) -> String:
 				in_support = true
 	if in_attack and in_support:
 		return "tile_shared"
-	return "tile_orange" if rune in ["a", "b"] else "tile_blue"
+	return "tile_orange" if SpellData.is_warm(rune) else "tile_blue"
 
 
 func _rebuild_brackets() -> void:
@@ -310,16 +315,14 @@ func _offer_wave() -> void:
 	for old: FragmentCloud in _cloud_layer.get_children():
 		old.dismiss()
 	var count := randi_range(Game.min_options, Game.OPTIONS_MAX)
-	# 按碎片来源里的份数加权抽取，同一批里不重复。
-	var remaining: Array = Game.fragment_pool.duplicate()
+	# 同一批里尽量不重复。
 	var options: Array = []
-	while options.size() < count and not remaining.is_empty():
-		var fragment: String = remaining.pick_random()
-		options.append(fragment)
-		while fragment in remaining:
-			remaining.erase(fragment)
-	while options.size() < count:
-		options.append(Game.fragment_pool.pick_random())
+	for attempt in 40:
+		if options.size() == count:
+			break
+		var fragment := Game.roll_fragment()
+		if fragment not in options:
+			options.append(fragment)
 
 	var clouds: Array[FragmentCloud] = []
 	var total_width := 0.0

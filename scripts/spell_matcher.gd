@@ -33,11 +33,15 @@ static func find_matches(sentence: String, spells: Array[SpellData]) -> Array[Di
 	return matches
 
 
+## damage 是总伤害，其中 pierce 部分无视敌人的防御。
 static func totals(matches: Array[Dictionary]) -> Dictionary:
-	var result := {"damage": 0, "shield": 0, "heal": 0}
+	var result := {"damage": 0, "pierce": 0, "shield": 0, "heal": 0, "gold": 0}
 	for m in matches:
 		var spell: SpellData = m.spell
 		result.damage += spell.damage
+		if spell.pierce:
+			result.pierce += spell.damage
 		result.shield += spell.shield
 		result.heal += spell.heal
+		result.gold += spell.gold
 	return result

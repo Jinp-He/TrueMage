@@ -75,7 +75,7 @@ func _cloud_piece() -> String:
 	var fire := false
 	var frost := false
 	for rune in text:
-		if rune in ["a", "b"]:
+		if SpellData.is_warm(rune):
 			fire = true
 		else:
 			frost = true

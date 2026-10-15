@@ -77,6 +77,7 @@ func _init() -> void:
 		var piece := sheet.get_region(PIECES[piece_name])
 		piece.save_png(ProjectSettings.globalize_path("%s/%s.png" % [OUT_DIR, piece_name]))
 	_save_starry_frame(sheet.get_region(PIECES["panel_starry"]))
+	_save_coin_icon()
 	print("Sliced %d pieces into %s" % [PIECES.size(), OUT_DIR])
 	quit()
 
@@ -90,3 +91,22 @@ func _save_starry_frame(panel: Image) -> void:
 			if edge > 44 or (edge > 8 and c.b > c.r * 1.15 + 0.02):
 				panel.set_pixel(x, y, Color(c, 0.0))
 	panel.save_png(ProjectSettings.globalize_path("%s/frame_starry.png" % OUT_DIR))
+
+
+## 图集里没有金币图标，先画一个占位：墨线描边的金色圆币。
+func _save_coin_icon() -> void:
+	var size := 64
+	var coin := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var center := Vector2(size, size) / 2.0
+	for y in size:
+		for x in size:
+			var d := Vector2(x + 0.5, y + 0.5).distance_to(center)
+			var color := Color(0, 0, 0, 0)
+			if d <= 30.0:
+				color = Color("2a1a12")
+			if d <= 26.5:
+				color = Color("f2c14e")
+			if d <= 20.0 and d >= 17.0:
+				color = Color("c8901e")
+			coin.set_pixel(x, y, color)
+	coin.save_png(ProjectSettings.globalize_path("%s/icon_coin.png" % OUT_DIR))

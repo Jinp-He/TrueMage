@@ -8,6 +8,7 @@ const REST_SCENE := "res://scenes/rest.tscn"
 const MAX_LENGTH_CAP := 9
 const SPELL_SLOT_CAP := 5
 const OPTIONS_MAX := 5
+const NOISE_CHANCE := 0.3
 
 ## 敌人按顺序出场；intents 循环使用。type 为 "attack" 或 "block"。
 const ENEMIES := [
@@ -28,7 +29,6 @@ var max_length: int
 var build_time: float
 ## 脑海区每批浮现的选项数在 [min_options, OPTIONS_MAX] 之间随机。
 var min_options: int
-var fragment_pool: Array[String]
 var relics: Array[String]
 
 
@@ -50,7 +50,6 @@ func new_run() -> void:
 	max_length = 7
 	build_time = 30.0
 	min_options = 3
-	fragment_pool = ["a", "a", "b", "c", "d", "aa", "ab", "bc", "cd"]
 	relics = []
 
 
@@ -68,6 +67,19 @@ func duel_reward() -> int:
 
 func has_spell(spell_id: String) -> bool:
 	return spells.any(func(spell: SpellData) -> bool: return spell.id == spell_id)
+
+
+## 脑海里浮现的碎片：多数截取自已装备咒语的咒式（1～3 个符文），三成是随机的杂符文。
+## 所以买了新咒语，它需要的符文自然会开始出现。
+func roll_fragment() -> String:
+	if spells.is_empty() or randf() < NOISE_CHANCE:
+		var noise := ""
+		for i in randi_range(1, 2):
+			noise += SpellData.RUNES.pick_random()
+		return noise
+	var pattern: String = spells.pick_random().pattern
+	var length := randi_range(1, mini(3, pattern.length()))
+	return pattern.substr(randi_range(0, pattern.length() - length), length)
 
 
 func has_relic(relic_id: String) -> bool:

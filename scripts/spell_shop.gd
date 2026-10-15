@@ -77,8 +77,8 @@ func _build_upgrade() -> void:
 	for i in count:
 		var rune := _selected.pattern[i]
 		var tile_rect := Rect2(x0 + step * i + 3, 420, step - 6, 52)
-		add_child(UiKit.place(UiKit.nine("tile_orange" if SpellData.is_fire(rune) else "tile_blue", 18), tile_rect))
-		add_child(UiKit.place(UiKit.centered(UiKit.label(rune, 36, UiKit.INK, UiKit.rune_font())), tile_rect))
+		add_child(UiKit.place(UiKit.nine("tile_orange" if SpellData.is_warm(rune) else "tile_blue", 18), tile_rect))
+		add_child(UiKit.place(UiKit.centered(UiKit.label(rune, 36, UiKit.rune_color(rune).darkened(0.25), UiKit.rune_font())), tile_rect))
 		var preview := _selected.copy()
 		preview.remove_rune(i)
 		var remove := UiKit.button("－", 20)
@@ -92,25 +92,27 @@ func _build_upgrade() -> void:
 	if count <= SpellData.MIN_PATTERN_LENGTH:
 		add_child(UiKit.place(UiKit.centered(UiKit.label("咒式至少保留 %d 个符文" % SpellData.MIN_PATTERN_LENGTH, 19)), Rect2(570, 514, 532, 26)))
 
-	# 追加：接在咒式末尾。
-	add_child(UiKit.place(UiKit.label("追加符文（%d 金币）：接在咒式末尾" % ADD_RUNE_COST, 21), Rect2(600, 546, 480, 30)))
+	# 追加：接在咒式末尾。选哪个符文效果都一样，所以效果只写一次。
+	var added := _selected.copy()
+	added.add_rune("a")
+	add_child(UiKit.place(UiKit.label("追加符文（%d 金币）：%s" % [ADD_RUNE_COST, added.change_text(_selected)], 21), Rect2(600, 546, 480, 30)))
 	var can_add := count < Game.max_length and Game.gold >= ADD_RUNE_COST
 	for i in SpellData.RUNES.size():
 		var rune: String = SpellData.RUNES[i]
-		var preview := _selected.copy()
-		preview.add_rune(rune)
-		var add := UiKit.button("+%s   %s" % [rune, preview.change_text(_selected)], 20)
+		var add := UiKit.button("+ " + rune, 28)
+		add.add_theme_font_override("font", UiKit.rune_font())
 		add.add_theme_color_override("font_color", UiKit.rune_color(rune).darkened(0.2))
+		add.add_theme_color_override("font_hover_color", UiKit.rune_color(rune).darkened(0.2))
 		add.disabled = not can_add
 		add.pressed.connect(func() -> void:
 			if _spend(ADD_RUNE_COST):
 				_selected.add_rune(rune)
 				_rebuild())
-		add_child(UiKit.place(add, Rect2(598 + 242 * (i % 2), 584 + 54 * (i / 2), 234, 46)))
+		add_child(UiKit.place(add, Rect2(604 + 94 * i, 588, 84, 56)))
 	if count >= Game.max_length:
-		add_child(UiKit.place(UiKit.centered(UiKit.label("咒式已和句子长度上限一样长", 19)), Rect2(570, 692, 532, 26)))
+		add_child(UiKit.place(UiKit.centered(UiKit.label("咒式已和句子长度上限一样长", 19)), Rect2(570, 652, 532, 26)))
 
-	add_child(UiKit.place(UiKit.centered(UiKit.label("火符文 a、b 提高伤害；盾符文 c、d 增加护盾。", 20)), Rect2(570, 726, 532, 30)))
+	add_child(UiKit.place(UiKit.centered(UiKit.label("追加哪个符文效果都一样，区别在于更容易和谁连上。", 20)), Rect2(570, 726, 532, 30)))
 	add_child(UiKit.place(UiKit.centered(UiKit.label("咒式越长越难拼，但触发一次的收益更高。", 20)), Rect2(570, 758, 532, 30)))
 
 

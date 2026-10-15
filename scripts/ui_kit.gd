@@ -11,6 +11,7 @@ const RED := Color("c8321e")
 const BLUE := Color("1f6fa8")
 const GREEN := Color("3c8a3f")
 const GOLD := Color("b8860b")
+const PURPLE := Color("7b3fb5")
 const NIGHT := Color("16121f")
 
 static var _text_font: Font
@@ -144,7 +145,18 @@ static func ink_box(fill: Color, radius: int) -> StyleBoxFlat:
 
 
 static func rune_color(rune: String) -> Color:
-	return RED if rune in ["a", "b"] else BLUE
+	match rune:
+		"a":
+			return RED
+		"b":
+			return PURPLE
+		"c":
+			return BLUE
+		"d":
+			return GREEN
+		"e":
+			return GOLD
+	return INK
 
 
 ## 把咒式转成按符文上色的 BBCode。
