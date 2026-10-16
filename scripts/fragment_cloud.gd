@@ -1,9 +1,12 @@
 class_name FragmentCloud
 extends Control
-## 脑海区里的一个碎片选项。一批选项同时浮现，选中其中一块后其余的消散，再浮现下一批。
+## 脑海区里的一朵词云（牌库里的一张牌）。一批同时浮现，选中其中一朵后其余的消散，再浮现下一批。
 
 signal picked(cloud: FragmentCloud)
+## 右键：存入记忆栏。
+signal stored(cloud: FragmentCloud)
 
+var card: CloudCard
 var text: String
 var base_position: Vector2
 var frozen := false
@@ -15,10 +18,11 @@ var _available := true
 var _gone := false
 
 
-static func create(p_text: String) -> FragmentCloud:
+static func create(p_card: CloudCard) -> FragmentCloud:
 	var cloud := FragmentCloud.new()
-	cloud.text = p_text
-	cloud.size = Vector2(150, 92) if p_text.length() == 1 else Vector2(128 + 38 * p_text.length(), 96)
+	cloud.card = p_card
+	cloud.text = p_card.runes
+	cloud.size = Vector2(150, 92) if cloud.text.length() == 1 else Vector2(128 + 38 * cloud.text.length(), 96)
 	cloud.pivot_offset = cloud.size / 2.0
 	cloud._bob_phase = randf() * TAU
 	cloud._build()
@@ -70,16 +74,45 @@ func _build() -> void:
 	var label := UiKit.centered(UiKit.label(text, 50, UiKit.INK, UiKit.rune_font()))
 	add_child(UiKit.place(label, Rect2(0, -4, size.x, size.y)))
 
+	var affix := card.affix()
+	if affix != null:
+		tooltip_text = "%s：%s" % [affix.name, affix.description]
+		add_child(affix_badge(affix, Vector2(size.x / 2.0, size.y - 4.0)))
+
+
+## 词条徽记：小图标 + 词条名，中心放在 center。战斗和商店共用。
+static func affix_badge(affix: AffixData, center: Vector2, font_size: int = 18) -> Control:
+	var badge := HBoxContainer.new()
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_theme_constant_override("separation", 2)
+	var icon := UiKit.sprite(affix.icon)
+	icon.custom_minimum_size = Vector2(font_size + 6, font_size + 6)
+	badge.add_child(icon)
+	var name_label := UiKit.label(affix.name, font_size)
+	badge.add_child(name_label)
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := UiKit.ink_box(Color("fbeecb"), 10)
+	style.set_border_width_all(2)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.add_child(badge)
+	# 进入场景树后主题字体才确定，那时再按实际大小居中。
+	panel.ready.connect(func() -> void:
+		panel.size = panel.get_combined_minimum_size()
+		panel.position = center - panel.size / 2.0)
+	return panel
+
 
 func _cloud_piece() -> String:
-	var fire := false
-	var frost := false
+	return piece_for(text)
+
+
+## 单一符文的词云用该符文的颜色，混合符文用粉色；单符文用小云，多符文用宽云。
+static func piece_for(text: String) -> String:
+	var colors := {}
 	for rune in text:
-		if SpellData.is_warm(rune):
-			fire = true
-		else:
-			frost = true
-	var color := "pink" if fire and frost else ("orange" if fire else "blue")
+		colors[UiKit.rune_piece_color(rune)] = true
+	var color: String = colors.keys()[0] if colors.size() == 1 else "pink"
 	return "cloud_%s%s" % [color, "" if text.length() == 1 else "_wide"]
 
 
@@ -93,9 +126,13 @@ func _process(delta: float) -> void:
 func _gui_input(event: InputEvent) -> void:
 	if _gone or frozen:
 		return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		accept_event()
-		picked.emit(self)
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			accept_event()
+			picked.emit(self)
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			accept_event()
+			stored.emit(self)
 
 
 func _notification(what: int) -> void:

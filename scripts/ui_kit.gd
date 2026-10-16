@@ -144,6 +144,11 @@ static func ink_box(fill: Color, radius: int) -> StyleBoxFlat:
 	return style
 
 
+## 符文对应的切图配色名：符文牌 tile_<名>，云朵 cloud_<名>。
+static func rune_piece_color(rune: String) -> String:
+	return {"a": "orange", "b": "purple", "c": "blue", "d": "green", "e": "gold"}.get(rune, "orange")
+
+
 static func rune_color(rune: String) -> Color:
 	match rune:
 		"a":

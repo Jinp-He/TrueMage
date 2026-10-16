@@ -35,7 +35,12 @@ func _build(tag: String) -> void:
 	var line := size.y * 0.25
 	var top := size.y * 0.13
 
-	var name_label := UiKit.label(spell.name, int(32 * k))
+	# 右上角留给标签，名字太长时缩小字号。
+	var name_width := text_w - (100.0 * k + 30.0 if tag != "" else 0.0)
+	var name_size := int(32 * k)
+	while name_size > 14 and UiKit.text_font().get_string_size(spell.name, HORIZONTAL_ALIGNMENT_LEFT, -1, name_size).x > name_width:
+		name_size -= 1
+	var name_label := UiKit.label(spell.name, name_size)
 	add_child(UiKit.place(name_label, Rect2(text_x, top, text_w, line)))
 
 	var pattern := UiKit.rich(int(26 * k))

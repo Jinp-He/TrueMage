@@ -78,6 +78,15 @@ func _init() -> void:
 		piece.save_png(ProjectSettings.globalize_path("%s/%s.png" % [OUT_DIR, piece_name]))
 	_save_starry_frame(sheet.get_region(PIECES["panel_starry"]))
 	_save_coin_icon()
+	# 每种符文一种颜色：图集只有橙、蓝两色，其余由色相平移得到。
+	var tints := {"purple": 0.76, "green": 0.31, "gold": 0.12}
+	_save_tinted(sheet.get_region(PIECES["tile_blue"]), "tile_purple", tints.purple)
+	_save_tinted(sheet.get_region(PIECES["tile_blue"]), "tile_green", tints.green)
+	_save_tinted(sheet.get_region(PIECES["tile_orange"]), "tile_gold", tints.gold)
+	for suffix: String in ["", "_wide"]:
+		_save_tinted(sheet.get_region(PIECES["cloud_blue" + suffix]), "cloud_purple" + suffix, tints.purple)
+		_save_tinted(sheet.get_region(PIECES["cloud_blue" + suffix]), "cloud_green" + suffix, tints.green)
+		_save_tinted(sheet.get_region(PIECES["cloud_orange" + suffix]), "cloud_gold" + suffix, tints.gold)
 	print("Sliced %d pieces into %s" % [PIECES.size(), OUT_DIR])
 	quit()
 
@@ -110,3 +119,13 @@ func _save_coin_icon() -> void:
 				color = Color("c8901e")
 			coin.set_pixel(x, y, color)
 	coin.save_png(ProjectSettings.globalize_path("%s/icon_coin.png" % OUT_DIR))
+
+
+## 把有颜色的像素换成目标色相，墨线和纸色（饱和度低）保持不变。
+func _save_tinted(piece: Image, out_name: String, hue: float) -> void:
+	for y in piece.get_height():
+		for x in piece.get_width():
+			var c := piece.get_pixel(x, y)
+			if c.a > 0.0 and c.s > 0.18 and c.v > 0.3:
+				piece.set_pixel(x, y, Color.from_hsv(hue, c.s, c.v, c.a))
+	piece.save_png(ProjectSettings.globalize_path("%s/%s.png" % [OUT_DIR, out_name]))

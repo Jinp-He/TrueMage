@@ -8,7 +8,7 @@ const REST_SCENE := "res://scenes/rest.tscn"
 const MAX_LENGTH_CAP := 9
 const SPELL_SLOT_CAP := 5
 const OPTIONS_MAX := 5
-const NOISE_CHANCE := 0.3
+const DECK_MIN := 8
 
 ## 敌人按顺序出场；intents 循环使用。type 为 "attack" 或 "block"。
 const ENEMIES := [
@@ -19,6 +19,7 @@ const ENEMIES := [
 	{"name": "骸骨大法师", "hp": 80, "intents": [["attack", 14], ["attack", 16], ["block", 12], ["attack", 22]]},
 ]
 
+var character: CharacterData
 var max_hp: int
 var hp: int
 var gold: int
@@ -30,6 +31,8 @@ var build_time: float
 ## 脑海区每批浮现的选项数在 [min_options, OPTIONS_MAX] 之间随机。
 var min_options: int
 var relics: Array[String]
+## 牌库：每场对决开始时洗成抽牌堆，脑海区每批从中发出词云。
+var deck: Array[CloudCard]
 
 
 func _ready() -> void:
@@ -40,12 +43,14 @@ func _ready() -> void:
 	new_run()
 
 
-func new_run() -> void:
-	max_hp = 30
+func new_run(character_id: String = "evoker") -> void:
+	character = CharacterData.by_id(character_id)
+	max_hp = character.max_hp
 	hp = max_hp
 	gold = 0
 	duel_index = 0
-	spells = [SpellData.by_id("fireball"), SpellData.by_id("armor"), SpellData.by_id("spark")]
+	spells.assign(character.spell_ids.map(func(spell_id: String) -> SpellData: return SpellData.by_id(spell_id)))
+	deck = character.build_deck()
 	spell_slots = 4
 	max_length = 7
 	build_time = 30.0
@@ -67,19 +72,6 @@ func duel_reward() -> int:
 
 func has_spell(spell_id: String) -> bool:
 	return spells.any(func(spell: SpellData) -> bool: return spell.id == spell_id)
-
-
-## 脑海里浮现的碎片：多数截取自已装备咒语的咒式（1～3 个符文），三成是随机的杂符文。
-## 所以买了新咒语，它需要的符文自然会开始出现。
-func roll_fragment() -> String:
-	if spells.is_empty() or randf() < NOISE_CHANCE:
-		var noise := ""
-		for i in randi_range(1, 2):
-			noise += SpellData.RUNES.pick_random()
-		return noise
-	var pattern: String = spells.pick_random().pattern
-	var length := randi_range(1, mini(3, pattern.length()))
-	return pattern.substr(randi_range(0, pattern.length() - length), length)
 
 
 func has_relic(relic_id: String) -> bool:
