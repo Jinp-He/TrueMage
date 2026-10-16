@@ -1,7 +1,8 @@
 extends IntermissionPage
-## 咒语商店，分两页：
+## 咒语商店，分三页：
 ##   法术页：购买、遗忘法术，增减符文改写咒式。
 ##   词云页：购买、移除牌库里的词云，给词云加词条。
+##   遗物页：购买遗物。
 
 const ADD_RUNE_COST := 4
 const REMOVE_RUNE_COST := 3
@@ -16,11 +17,13 @@ var _selected: SpellData
 var _cloud_offers: Array[CloudCard] = []
 var _affix_offers: Array[AffixData] = []
 var _selected_cloud: CloudCard
+var _relic_offers: Array[RelicData] = []
 
 
 func _ready() -> void:
 	_roll_offers()
 	_roll_cloud_offers()
+	_roll_relic_offers()
 	_affix_offers.assign(AffixData.catalog())
 	_affix_offers.shuffle()
 	_affix_offers.resize(3)
@@ -41,16 +44,19 @@ func _build_page() -> void:
 		_build_owned()
 		_build_upgrade()
 		_build_shelf()
-	else:
+	elif _tab == "clouds":
 		_build_deck()
 		_build_cloud_upgrade()
 		_build_cloud_shelf()
+	else:
+		_build_owned_relics()
+		_build_relic_shelf()
 
 
 func _build_tabs() -> void:
-	for i in 2:
-		var key: String = ["spells", "clouds"][i]
-		var tab := UiKit.button(["法术", "词云"][i], 24)
+	for i in 3:
+		var key: String = ["spells", "clouds", "relics"][i]
+		var tab := UiKit.button(["法术", "词云", "遗物"][i], 24)
 		tab.toggle_mode = true
 		tab.button_pressed = _tab == key
 		tab.pressed.connect(func() -> void:
@@ -68,18 +74,11 @@ func _roll_offers() -> void:
 # ---------------------------------------------------------------- 我的咒语
 
 func _build_owned() -> void:
-	_column(Rect2(24, 150, 530, 680), "我的咒语  %d / %d" % [Game.spells.size(), Game.spell_slots])
-	add_child(UiKit.place(UiKit.centered(UiKit.label("点击咒语进行强化", 20)), Rect2(24, 222, 530, 26)))
-	var step := minf(128.0, 560.0 / Game.spell_slots)
-	for i in Game.spells.size():
-		var spell := Game.spells[i]
-		var card := SpellCard.create(spell, Vector2(482, step - 6.0))
-		card.position = Vector2(48, 256 + step * i)
-		card.set_highlight(spell == _selected)
-		add_child(card)
-		_hit_area(Rect2(card.position, card.size), func() -> void:
-			_selected = spell
-			_rebuild())
+	var cards := _build_owned_spells(Rect2(24, 150, 530, 680), _selected, func(spell: SpellData) -> void:
+		_selected = spell
+		_rebuild())
+	for card in cards:
+		var spell := card.spell
 		var forget := UiKit.button("遗忘", 20)
 		forget.disabled = Game.spells.size() <= 1
 		forget.pressed.connect(func() -> void:
@@ -126,34 +125,7 @@ func _build_upgrade() -> void:
 		var reason := "首尾型咒式不能移除符文" if _selected.rule == SpellData.BOOKEND else "咒式已经不能再缩短"
 		add_child(UiKit.place(UiKit.centered(UiKit.label(reason, 19)), Rect2(570, 514, 532, 26)))
 
-	# 追加：接在咒式末尾。选哪个符文效果都一样，所以效果只写一次。
-	var added := _selected.copy()
-	added.add_rune(SpellData.RUNES.filter(func(rune: String) -> bool: return rune not in _selected.pattern).front() if _selected.rule == SpellData.ABSENT else "a")
-	add_child(UiKit.place(UiKit.label("追加符文（%d 金币）：%s" % [ADD_RUNE_COST, added.change_text(_selected)], 21), Rect2(600, 546, 480, 30)))
-	var can_add := _selected.can_add_rune(Game.max_length) and Game.gold >= ADD_RUNE_COST
-	# 多样型、首尾型追加什么符文都一样，只给一个强化按钮。
-	if not _selected.rune_choice_matters():
-		var boost := UiKit.button("强化", 28)
-		boost.disabled = not can_add
-		boost.pressed.connect(func() -> void:
-			if _spend(ADD_RUNE_COST):
-				_selected.add_rune("a")
-				_rebuild())
-		add_child(UiKit.place(boost, Rect2(746, 588, 180, 56)))
-	for i in (SpellData.RUNES.size() if _selected.rune_choice_matters() else 0):
-		var rune: String = SpellData.RUNES[i]
-		var add := UiKit.button("+ " + rune, 28)
-		add.add_theme_font_override("font", UiKit.rune_font())
-		add.add_theme_color_override("font_color", UiKit.rune_color(rune).darkened(0.2))
-		add.add_theme_color_override("font_hover_color", UiKit.rune_color(rune).darkened(0.2))
-		add.disabled = not can_add or (_selected.rule == SpellData.ABSENT and rune in _selected.pattern)
-		add.pressed.connect(func() -> void:
-			if _spend(ADD_RUNE_COST):
-				_selected.add_rune(rune)
-				_rebuild())
-		add_child(UiKit.place(add, Rect2(604 + 94 * i, 588, 84, 56)))
-	if not _selected.can_add_rune(Game.max_length):
-		add_child(UiKit.place(UiKit.centered(UiKit.label("咒式已经不能再追加", 19)), Rect2(570, 652, 532, 26)))
+	_build_rune_adder(_selected, column, 546, ADD_RUNE_COST, func() -> void: pass)
 
 	for i in _upgrade_hints().size():
 		add_child(UiKit.place(UiKit.centered(UiKit.label(_upgrade_hints()[i], 20)), Rect2(570, 726 + 32 * i, 532, 30)))
@@ -226,17 +198,6 @@ func _roll_cloud_offers() -> void:
 
 func _cloud_price(card: CloudCard) -> int:
 	return 2 + card.runes.length() + (3 if card.affix_id != "" else 0)
-
-
-## 一朵静态的词云：云朵、符文，带词条时下方挂徽记。
-func _cloud_tile(card: CloudCard, rect: Rect2, font_size: int) -> void:
-	var cloud := UiKit.sprite(FragmentCloud.piece_for(card.runes))
-	cloud.stretch_mode = TextureRect.STRETCH_SCALE
-	add_child(UiKit.place(cloud, rect))
-	add_child(UiKit.place(UiKit.centered(UiKit.label(card.runes, font_size, UiKit.INK, UiKit.rune_font())), Rect2(rect.position + Vector2(0, -3), rect.size)))
-	var affix := card.affix()
-	if affix != null:
-		add_child(FragmentCloud.affix_badge(affix, Vector2(rect.get_center().x, rect.end.y - 2), 15))
 
 
 func _build_deck() -> void:
@@ -312,3 +273,52 @@ func _build_cloud_shelf() -> void:
 			_roll_cloud_offers()
 			_rebuild())
 	add_child(UiKit.place(reroll, Rect2(1303, 744, 160, 44)))
+
+
+# ---------------------------------------------------------------- 遗物页
+
+func _roll_relic_offers() -> void:
+	var candidates := RelicData.catalog().filter(func(relic: RelicData) -> bool: return relic.available())
+	candidates.shuffle()
+	_relic_offers.assign(candidates.slice(0, 3))
+
+
+func _build_owned_relics() -> void:
+	_column(Rect2(24, 150, 530, 680), "已拥有的遗物")
+	if Game.relics.is_empty():
+		add_child(UiKit.place(UiKit.centered(UiKit.label("还没有遗物", 22)), Rect2(24, 240, 530, 30)))
+	for i in Game.relics.size():
+		var relic := RelicData.by_id(Game.relics[i])
+		var row := Vector2(56, 236 + 58 * i)
+		add_child(UiKit.place(UiKit.icon_sprite("relics", relic.id, relic.icon), Rect2(row, Vector2(46, 46))))
+		add_child(UiKit.place(UiKit.label(relic.name, 23), Rect2(row + Vector2(56, -10), Vector2(400, 34))))
+		add_child(UiKit.place(UiKit.label(relic.description, 18), Rect2(row + Vector2(56, 20), Vector2(420, 28))))
+
+
+func _build_relic_shelf() -> void:
+	_column(Rect2(570, 150, 1078, 680), "遗物货架")
+	if _relic_offers.is_empty():
+		add_child(UiKit.place(UiKit.centered(UiKit.label("遗物都卖完了。", 24)), Rect2(570, 300, 1078, 40)))
+	for i in _relic_offers.size():
+		var relic := _relic_offers[i]
+		var top := Vector2(600, 236 + 160 * i)
+		add_child(UiKit.place(UiKit.nine("card_spell", 36), Rect2(top, Vector2(1018, 148))))
+		add_child(UiKit.place(UiKit.icon_sprite("relics", relic.id, relic.icon), Rect2(top + Vector2(28, 24), Vector2(100, 100))))
+		add_child(UiKit.place(UiKit.label(relic.name, 32), Rect2(top + Vector2(150, 22), Vector2(600, 46))))
+		add_child(UiKit.place(UiKit.label(relic.description, 25), Rect2(top + Vector2(150, 76), Vector2(680, 40))))
+		var buy := UiKit.button("购买  %d" % relic.cost, 22)
+		buy.disabled = Game.gold < relic.cost
+		buy.pressed.connect(func() -> void:
+			if _spend(relic.cost):
+				Game.gain_relic(relic)
+				_relic_offers.erase(relic)
+				_rebuild())
+		add_child(UiKit.place(buy, Rect2(top + Vector2(860, 50), Vector2(130, 48))))
+
+	var reroll := UiKit.button("刷新货架  %d" % REROLL_COST, 20)
+	reroll.disabled = Game.gold < REROLL_COST
+	reroll.pressed.connect(func() -> void:
+		if _spend(REROLL_COST):
+			_roll_relic_offers()
+			_rebuild())
+	add_child(UiKit.place(reroll, Rect2(1029, 744, 160, 44)))

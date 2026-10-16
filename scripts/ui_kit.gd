@@ -3,6 +3,8 @@ extends RefCounted
 ## 用 art/ui/pieces 里的切图拼界面的小工具。
 
 const PIECE_PATH := "res://art/ui/pieces/%s.png"
+## 地图页用的切图，由 tools/slice_map_sheet.gd 切出。
+const MAP_PIECE_PATH := "res://art/ui/map/%s.png"
 
 const INK := Color("2a1a12")
 const CREAM := Color("f6e7c1")
@@ -97,8 +99,16 @@ static func icon_sprite(kind: String, id: String, fallback_piece: String) -> Tex
 
 
 static func sprite(piece: String) -> TextureRect:
+	return texture_rect(tex(piece))
+
+
+static func map_sprite(piece: String) -> TextureRect:
+	return texture_rect(load(MAP_PIECE_PATH % piece))
+
+
+static func texture_rect(texture: Texture2D) -> TextureRect:
 	var node := TextureRect.new()
-	node.texture = tex(piece)
+	node.texture = texture
 	node.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	node.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	node.mouse_filter = Control.MOUSE_FILTER_IGNORE

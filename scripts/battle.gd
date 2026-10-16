@@ -2,12 +2,15 @@ extends Control
 ## 一场对决：敌人预告 → 限时构句 → 释放结算 → 敌人行动，循环到一方倒下。
 ## 画面按 art/concept/battle_layout_v2.jpg 的版式布局（1672x941），分为敌人区、咒语构筑、灵感碎片、法术列表四块。
 
-enum Phase { BUILD, RESOLVE, OVER }
+## INTRO：开场教程还没点掉，计时和词云都不动。
+enum Phase { INTRO, BUILD, RESOLVE, OVER }
 
 const STAGE_BACKGROUND := "res://art/backgrounds/battle_stage.png"
 const HAND_FRAMES := "res://art/characters/player/hand_wand/frame_%03d.png"
 const ENEMY_ART := "res://art/characters/enemies/%s.png"
 const MIND_BACKGROUND := "res://art/backgrounds/mind_area.webp"
+## 第一场战斗开始前盖在整个画面上的教程图，点一下才正式开战。
+const TUTORIAL_IMAGE := "res://art/tutorial/battle_basics.webp"
 
 ## 舞台背景（1983x793）按舞台比例裁出中下部：留住烛台和地上的法阵。
 const STAGE_SOURCE := Rect2(0, 300, 1983, 432)
@@ -41,7 +44,7 @@ const DRIFT_SPEED_MAX := 32.0
 ## 脑海区里词云会撞上的固定障碍（脑海区内的坐标）：左下记忆栏、右下计数和按钮。
 const MIND_OBSTACLES := [Rect2(10, 216, 438, 106), Rect2(792, 262, 452, 60)]
 
-var _phase := Phase.BUILD
+var _phase := Phase.INTRO
 var _turn := 0
 var _enemy: Dictionary
 var _enemy_hp: int
@@ -113,7 +116,42 @@ func _ready() -> void:
 	_popup_layer = Control.new()
 	_popup_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_popup_layer)
-	_start_turn()
+	if Game.tutorial_seen:
+		_start_turn()
+	else:
+		_show_tutorial()
+
+
+## 整屏教程图，点击任意处淡出后才开始第一回合。
+func _show_tutorial() -> void:
+	var page := TextureRect.new()
+	page.texture = load(TUTORIAL_IMAGE)
+	page.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	page.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	add_child(UiKit.place(page, Rect2(0, 0, 1672, 941)))
+
+	var hint := UiKit.outlined(UiKit.centered(UiKit.label("点击任意处开始战斗", 26, UiKit.CREAM)), 6)
+	var pill := UiKit.ink_box(Color(UiKit.NIGHT, 0.75), 22)
+	pill.border_color = UiKit.GOLD
+	hint.add_theme_stylebox_override("normal", pill)
+	page.add_child(UiKit.place(hint, Rect2(656, 884, 360, 46)))
+	var blink := hint.create_tween().set_loops()
+	blink.tween_property(hint, "modulate:a", 0.45, 0.8).set_trans(Tween.TRANS_SINE)
+	blink.tween_property(hint, "modulate:a", 1.0, 0.8).set_trans(Tween.TRANS_SINE)
+
+	var dismiss := Button.new()
+	dismiss.flat = true
+	dismiss.focus_mode = Control.FOCUS_NONE
+	for state: String in ["normal", "hover", "pressed", "disabled"]:
+		dismiss.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+	page.add_child(UiKit.place(dismiss, Rect2(0, 0, 1672, 941)))
+	dismiss.pressed.connect(func() -> void:
+		dismiss.disabled = true
+		Game.tutorial_seen = true
+		var fade := page.create_tween()
+		fade.tween_property(page, "modulate:a", 0.0, 0.3)
+		fade.tween_callback(page.queue_free)
+		_start_turn())
 
 
 func _process(delta: float) -> void:
@@ -520,19 +558,23 @@ func _shared_rune_count() -> int:
 func _finish(won: bool) -> void:
 	_phase = Phase.OVER
 	if not won:
-		_show_result("败北…", "你倒在了第 %d 场对决。" % (Game.duel_index + 1), "重新开始", func() -> void:
+		_show_result("败北…", "你倒在了地图第 %d 层。" % Game.floor_number(), "重新开始", func() -> void:
 			Game.new_run()
-			Game.go_to_battle())
-	elif Game.is_last_duel():
-		_show_result("通关！", "所有对手都已被你的咒语击败。", "再来一局", func() -> void:
+			Game.go_to_map())
+	elif Game.in_boss_fight():
+		_show_result("通关！", "首领已被你的咒语击败。", "再来一局", func() -> void:
 			Game.new_run()
-			Game.go_to_battle())
+			Game.go_to_map())
 	else:
 		var reward := Game.duel_reward()
 		Game.gold += reward
-		Game.duel_index += 1
-		var stop := "前往咒语商店" if Game.next_stop_is_spell_shop() else "前往休息处"
-		_show_result("胜利！", "获得 %d 金币。" % reward, stop, Game.go_to_intermission)
+		var detail := "获得 %d 金币。" % reward
+		if Game.in_elite_fight():
+			var relic := Game.random_relic()
+			if relic != null:
+				Game.gain_relic(relic)
+				detail = "获得 %d 金币和遗物「%s」。" % [reward, relic.name]
+		_show_result("胜利！", detail, "学习咒语", Game.go_to_learn)
 
 
 # ---------------------------------------------------------------- 刷新显示
