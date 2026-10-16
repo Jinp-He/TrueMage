@@ -27,7 +27,7 @@ func _build(tag: String) -> void:
 	add_child(_frame)
 
 	var icon_side := minf(size.y - 28.0, 124.0)
-	var icon := UiKit.sprite(spell.icon)
+	var icon := UiKit.icon_sprite("spells", spell.id, spell.icon)
 	add_child(UiKit.place(icon, Rect2(20, (size.y - icon_side) / 2.0, icon_side, icon_side)))
 
 	var text_x := 20.0 + icon_side + 14.0
@@ -46,7 +46,7 @@ func _build(tag: String) -> void:
 	var pattern := UiKit.rich(int(26 * k))
 	pattern.add_theme_font_override("bold_font", UiKit.rune_font())
 	pattern.add_theme_font_size_override("bold_font_size", int(32 * k))
-	pattern.text = "咒语： [b]%s[/b]" % UiKit.rune_bbcode(spell.pattern)
+	pattern.text = "咒语： %s" % spell.pattern_bbcode()
 	add_child(UiKit.place(pattern, Rect2(text_x, top + line, text_w, line * 1.2)))
 
 	# 强化后效果描述可能变长，缩小字号直到放得下。

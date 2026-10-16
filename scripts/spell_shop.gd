@@ -106,7 +106,7 @@ func _build_upgrade() -> void:
 	var count := _selected.pattern.length()
 	var step := minf(60.0, 470.0 / count)
 	var x0 := column.get_center().x - step * count / 2.0
-	var can_remove := count > SpellData.MIN_PATTERN_LENGTH and Game.gold >= REMOVE_RUNE_COST
+	var can_remove := _selected.can_remove_rune() and Game.gold >= REMOVE_RUNE_COST
 	for i in count:
 		var rune := _selected.pattern[i]
 		var tile_rect := Rect2(x0 + step * i + 3, 420, step - 6, 52)
@@ -116,37 +116,60 @@ func _build_upgrade() -> void:
 		preview.remove_rune(i)
 		var remove := UiKit.button("－", 20)
 		remove.disabled = not can_remove
-		remove.tooltip_text = "%s → %s  %s" % [_selected.pattern, preview.pattern, preview.change_text(_selected)]
+		remove.tooltip_text = "%s → %s  %s" % [_selected.pattern_text(), preview.pattern_text(), preview.change_text(_selected)]
 		remove.pressed.connect(func() -> void:
 			if _spend(REMOVE_RUNE_COST):
 				_selected.remove_rune(i)
 				_rebuild())
 		add_child(UiKit.place(remove, Rect2(tile_rect.position + Vector2(0, 58), Vector2(tile_rect.size.x, 34))))
-	if count <= SpellData.MIN_PATTERN_LENGTH:
-		add_child(UiKit.place(UiKit.centered(UiKit.label("咒式至少保留 %d 个符文" % SpellData.MIN_PATTERN_LENGTH, 19)), Rect2(570, 514, 532, 26)))
+	if not _selected.can_remove_rune():
+		var reason := "首尾型咒式不能移除符文" if _selected.rule == SpellData.BOOKEND else "咒式已经不能再缩短"
+		add_child(UiKit.place(UiKit.centered(UiKit.label(reason, 19)), Rect2(570, 514, 532, 26)))
 
 	# 追加：接在咒式末尾。选哪个符文效果都一样，所以效果只写一次。
 	var added := _selected.copy()
-	added.add_rune("a")
+	added.add_rune(SpellData.RUNES.filter(func(rune: String) -> bool: return rune not in _selected.pattern).front() if _selected.rule == SpellData.ABSENT else "a")
 	add_child(UiKit.place(UiKit.label("追加符文（%d 金币）：%s" % [ADD_RUNE_COST, added.change_text(_selected)], 21), Rect2(600, 546, 480, 30)))
-	var can_add := count < Game.max_length and Game.gold >= ADD_RUNE_COST
-	for i in SpellData.RUNES.size():
+	var can_add := _selected.can_add_rune(Game.max_length) and Game.gold >= ADD_RUNE_COST
+	# 多样型、首尾型追加什么符文都一样，只给一个强化按钮。
+	if not _selected.rune_choice_matters():
+		var boost := UiKit.button("强化", 28)
+		boost.disabled = not can_add
+		boost.pressed.connect(func() -> void:
+			if _spend(ADD_RUNE_COST):
+				_selected.add_rune("a")
+				_rebuild())
+		add_child(UiKit.place(boost, Rect2(746, 588, 180, 56)))
+	for i in (SpellData.RUNES.size() if _selected.rune_choice_matters() else 0):
 		var rune: String = SpellData.RUNES[i]
 		var add := UiKit.button("+ " + rune, 28)
 		add.add_theme_font_override("font", UiKit.rune_font())
 		add.add_theme_color_override("font_color", UiKit.rune_color(rune).darkened(0.2))
 		add.add_theme_color_override("font_hover_color", UiKit.rune_color(rune).darkened(0.2))
-		add.disabled = not can_add
+		add.disabled = not can_add or (_selected.rule == SpellData.ABSENT and rune in _selected.pattern)
 		add.pressed.connect(func() -> void:
 			if _spend(ADD_RUNE_COST):
 				_selected.add_rune(rune)
 				_rebuild())
 		add_child(UiKit.place(add, Rect2(604 + 94 * i, 588, 84, 56)))
-	if count >= Game.max_length:
-		add_child(UiKit.place(UiKit.centered(UiKit.label("咒式已和句子长度上限一样长", 19)), Rect2(570, 652, 532, 26)))
+	if not _selected.can_add_rune(Game.max_length):
+		add_child(UiKit.place(UiKit.centered(UiKit.label("咒式已经不能再追加", 19)), Rect2(570, 652, 532, 26)))
 
-	add_child(UiKit.place(UiKit.centered(UiKit.label("追加哪个符文效果都一样，区别在于更容易和谁连上。", 20)), Rect2(570, 726, 532, 30)))
-	add_child(UiKit.place(UiKit.centered(UiKit.label("咒式越长越难拼，但触发一次的收益更高。", 20)), Rect2(570, 758, 532, 30)))
+	for i in _upgrade_hints().size():
+		add_child(UiKit.place(UiKit.centered(UiKit.label(_upgrade_hints()[i], 20)), Rect2(570, 726 + 32 * i, 532, 30)))
+
+
+func _upgrade_hints() -> Array[String]:
+	match _selected.rule:
+		SpellData.BOOKEND:
+			return ["首尾之间每夹一个符文，效果就多算一倍。", "强化提高每倍的数值。"]
+		SpellData.VARIETY:
+			return ["追加：需要更多种不同符文连在一起。", "移除：更容易凑出，效果降低。"]
+		SpellData.COUNT:
+			return ["这些符文在句中凑齐就触发，不必相连。", "追加符文更难凑齐，但收益更高。"]
+		SpellData.ABSENT:
+			return ["整句不含这些符文时触发。", "追加禁用符文更难满足，但收益更高。"]
+	return ["追加哪个符文效果都一样，区别在于更容易和谁连上。", "咒式越长越难拼，但触发一次的收益更高。"]
 
 
 # ---------------------------------------------------------------- 货架
@@ -187,8 +210,9 @@ func _roll_cloud_offers() -> void:
 	_cloud_offers.clear()
 	for i in 3:
 		var runes := ""
-		if randf() < 0.7 and not Game.spells.is_empty():
-			var pattern: String = Game.spells.pick_random().pattern
+		var sources := Game.spells.filter(func(spell: SpellData) -> bool: return spell.offer_runes() != "")
+		if randf() < 0.7 and not sources.is_empty():
+			var pattern: String = sources.pick_random().offer_runes()
 			var length := randi_range(1, mini(3, pattern.length()))
 			runes = pattern.substr(randi_range(0, pattern.length() - length), length)
 		else:

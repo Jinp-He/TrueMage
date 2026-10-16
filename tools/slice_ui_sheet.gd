@@ -83,6 +83,9 @@ func _init() -> void:
 	_save_tinted(sheet.get_region(PIECES["tile_blue"]), "tile_purple", tints.purple)
 	_save_tinted(sheet.get_region(PIECES["tile_blue"]), "tile_green", tints.green)
 	_save_tinted(sheet.get_region(PIECES["tile_orange"]), "tile_gold", tints.gold)
+	# 杂念和封印用的灰色：饱和度归零。
+	_save_tinted(sheet.get_region(PIECES["tile_blue"]), "tile_gray", 0.0, 0.0)
+	_save_tinted(sheet.get_region(PIECES["cloud_blue"]), "cloud_gray", 0.0, 0.0)
 	for suffix: String in ["", "_wide"]:
 		_save_tinted(sheet.get_region(PIECES["cloud_blue" + suffix]), "cloud_purple" + suffix, tints.purple)
 		_save_tinted(sheet.get_region(PIECES["cloud_blue" + suffix]), "cloud_green" + suffix, tints.green)
@@ -122,10 +125,10 @@ func _save_coin_icon() -> void:
 
 
 ## 把有颜色的像素换成目标色相，墨线和纸色（饱和度低）保持不变。
-func _save_tinted(piece: Image, out_name: String, hue: float) -> void:
+func _save_tinted(piece: Image, out_name: String, hue: float, saturation_scale: float = 1.0) -> void:
 	for y in piece.get_height():
 		for x in piece.get_width():
 			var c := piece.get_pixel(x, y)
 			if c.a > 0.0 and c.s > 0.18 and c.v > 0.3:
-				piece.set_pixel(x, y, Color.from_hsv(hue, c.s, c.v, c.a))
+				piece.set_pixel(x, y, Color.from_hsv(hue, c.s * saturation_scale, c.v * (1.0 if saturation_scale > 0.0 else 0.85), c.a))
 	piece.save_png(ProjectSettings.globalize_path("%s/%s.png" % [OUT_DIR, out_name]))

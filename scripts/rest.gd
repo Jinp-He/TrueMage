@@ -52,7 +52,7 @@ func _build_campfire() -> void:
 	for i in Game.relics.size():
 		var relic := RelicData.by_id(Game.relics[i])
 		var row := Vector2(56 + 240 * (i % 2), 596 + 44 * (i / 2))
-		var icon := UiKit.sprite(relic.icon)
+		var icon := UiKit.icon_sprite("relics", relic.id, relic.icon)
 		icon.mouse_filter = Control.MOUSE_FILTER_STOP
 		icon.tooltip_text = relic.description
 		add_child(UiKit.place(icon, Rect2(row, Vector2(38, 38))))
@@ -67,7 +67,7 @@ func _build_relic_shelf() -> void:
 		var relic := _offers[i]
 		var top := Vector2(600, 236 + 160 * i)
 		add_child(UiKit.place(UiKit.nine("card_spell", 36), Rect2(top, Vector2(1018, 148))))
-		add_child(UiKit.place(UiKit.sprite(relic.icon), Rect2(top + Vector2(28, 24), Vector2(100, 100))))
+		add_child(UiKit.place(UiKit.icon_sprite("relics", relic.id, relic.icon), Rect2(top + Vector2(28, 24), Vector2(100, 100))))
 		add_child(UiKit.place(UiKit.label(relic.name, 32), Rect2(top + Vector2(150, 22), Vector2(600, 46))))
 		add_child(UiKit.place(UiKit.label(relic.description, 25), Rect2(top + Vector2(150, 76), Vector2(680, 40))))
 		var buy := UiKit.button("购买  %d" % relic.cost, 22)

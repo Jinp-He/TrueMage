@@ -1,28 +1,43 @@
 class_name FragmentCloud
 extends Control
-## 脑海区里的一朵词云（牌库里的一张牌）。一批同时浮现，选中其中一朵后其余的消散，再浮现下一批。
+## 脑海区里的一朵词云（牌库里的一张牌）。词云一朵接一朵浮现，各自停留一段时间后消散；选走一朵不影响其他的。
 
 signal picked(cloud: FragmentCloud)
 ## 右键：存入记忆栏。
 signal stored(cloud: FragmentCloud)
+## 停留时间到了，自己消散。
+signal expired(cloud: FragmentCloud)
+
+const BAR_HEIGHT := 22.0
+const FADING_AT := 0.25
 
 var card: CloudCard
 var text: String
 var base_position: Vector2
 var frozen := false
+var life: float
+var max_life: float
+## 在脑海里漂移的速度（像素/秒），由战斗场景负责移动和碰撞。
+var velocity: Vector2
+## 鼠标悬停时停下，方便点击。
+var hovered := false
 
 var _cloud: TextureRect
+var _bar: UiBar
 var _bob_phase: float
 var _age := 0.0
 var _available := true
 var _gone := false
 
 
-static func create(p_card: CloudCard) -> FragmentCloud:
+static func create(p_card: CloudCard, p_life: float) -> FragmentCloud:
 	var cloud := FragmentCloud.new()
 	cloud.card = p_card
 	cloud.text = p_card.runes
-	cloud.size = Vector2(150, 92) if cloud.text.length() == 1 else Vector2(128 + 38 * cloud.text.length(), 96)
+	cloud.life = p_life
+	cloud.max_life = p_life
+	var body := Vector2(150, 92) if cloud.text.length() == 1 else Vector2(128 + 38 * cloud.text.length(), 96)
+	cloud.size = body + Vector2(0, BAR_HEIGHT)
 	cloud.pivot_offset = cloud.size / 2.0
 	cloud._bob_phase = randf() * TAU
 	cloud._build()
@@ -34,14 +49,18 @@ func set_available(on: bool) -> void:
 	_cloud.modulate = Color.WHITE if on else Color(0.55, 0.55, 0.62)
 
 
-## 浮现动画；delay 用来让同一批选项依次冒出来。
+## 浮现动画；delay 让同一批词云一朵接一朵冒出来。冒出来之前点不到。
 func appear(delay: float) -> void:
 	modulate.a = 0.0
 	scale = Vector2(0.7, 0.7)
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tween := create_tween().set_parallel()
 	tween.tween_property(self, "modulate:a", 1.0, 0.25).set_delay(delay)
 	tween.tween_property(self, "scale", Vector2.ONE, 0.25).set_delay(delay) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.chain().tween_callback(func() -> void:
+		if not _gone:
+			mouse_filter = Control.MOUSE_FILTER_STOP)
 
 
 ## 被选中：放大后飞散。
@@ -66,18 +85,24 @@ func reject() -> void:
 
 
 func _build() -> void:
+	var body := Vector2(size.x, size.y - BAR_HEIGHT)
 	_cloud = UiKit.sprite(_cloud_piece())
 	_cloud.stretch_mode = TextureRect.STRETCH_SCALE
-	_cloud.size = size
+	_cloud.size = body
 	add_child(_cloud)
 
 	var label := UiKit.centered(UiKit.label(text, 50, UiKit.INK, UiKit.rune_font()))
-	add_child(UiKit.place(label, Rect2(0, -4, size.x, size.y)))
+	add_child(UiKit.place(label, Rect2(Vector2(0, -4), body)))
+
+	var bar_size := Vector2(minf(size.x - 40.0, 124.0), 18)
+	_bar = UiBar.create("bar_small_frame", "bar_small_fill_blue", bar_size, Vector2(7, 4))
+	_bar.position = Vector2((size.x - bar_size.x) / 2.0, size.y - BAR_HEIGHT + 3.0)
+	add_child(_bar)
 
 	var affix := card.affix()
 	if affix != null:
 		tooltip_text = "%s：%s" % [affix.name, affix.description]
-		add_child(affix_badge(affix, Vector2(size.x / 2.0, size.y - 4.0)))
+		add_child(affix_badge(affix, Vector2(size.x / 2.0, body.y - 6.0)))
 
 
 ## 词条徽记：小图标 + 词条名，中心放在 center。战斗和商店共用。
@@ -85,7 +110,7 @@ static func affix_badge(affix: AffixData, center: Vector2, font_size: int = 18) 
 	var badge := HBoxContainer.new()
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_theme_constant_override("separation", 2)
-	var icon := UiKit.sprite(affix.icon)
+	var icon := UiKit.icon_sprite("affixes", affix.id, affix.icon)
 	icon.custom_minimum_size = Vector2(font_size + 6, font_size + 6)
 	badge.add_child(icon)
 	var name_label := UiKit.label(affix.name, font_size)
@@ -121,6 +146,17 @@ func _process(delta: float) -> void:
 		return
 	_age += delta
 	position = base_position + Vector2(0, sin(_age * 1.7 + _bob_phase) * 5.0)
+	if frozen:
+		return
+	life -= delta
+	var left := life / max_life
+	_bar.ratio = left
+	_bar.set_fill("bar_small_fill_blue" if left > 0.6 else ("bar_small_fill_yellow" if left > 0.3 else "bar_small_fill_red"))
+	if left < FADING_AT:
+		_cloud.self_modulate.a = 0.45 + 0.55 * (left / FADING_AT)
+	if life <= 0.0:
+		expired.emit(self)
+		dismiss()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -136,6 +172,10 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_MOUSE_ENTER:
+		hovered = true
+	elif what == NOTIFICATION_MOUSE_EXIT:
+		hovered = false
 	if _gone or frozen or not _available:
 		return
 	if what == NOTIFICATION_MOUSE_ENTER:

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c1gwuu1xspe35"
-path="res://.godot/imported/mind_area_background.webp-5af60044158633ac313d7be1693231e9.ctex"
+uid="uid://b1easlcums3cc"
+path="res://.godot/imported/battle_stage.png-1b8d29c88ed8f039e0c59cb995d15d36.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/backgrounds/mind_area_background.webp"
-dest_files=["res://.godot/imported/mind_area_background.webp-5af60044158633ac313d7be1693231e9.ctex"]
+source_file="res://art/backgrounds/battle_stage.png"
+dest_files=["res://.godot/imported/battle_stage.png-1b8d29c88ed8f039e0c59cb995d15d36.ctex"]
 
 [params]
 

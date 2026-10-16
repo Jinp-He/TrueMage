@@ -29,7 +29,7 @@ func available() -> bool:
 		"bookmark":
 			return Game.spell_slots < Game.SPELL_SLOT_CAP
 		"feather":
-			return Game.min_options < Game.OPTIONS_MAX
+			return Game.max_clouds < Game.CLOUDS_CAP
 	return true
 
 
@@ -43,7 +43,7 @@ func on_acquire() -> void:
 		"bookmark":
 			Game.spell_slots += 1
 		"feather":
-			Game.min_options += 1
+			Game.max_clouds += 1
 		"heart":
 			Game.max_hp += 8
 			Game.heal(8)
@@ -54,7 +54,7 @@ static func catalog() -> Array[RelicData]:
 		RelicData.new("hourglass", "沙漏坠饰", "构句时间 +8 秒", "icon_hourglass", 7),
 		RelicData.new("scroll", "长卷轴", "句子长度上限 +1", "ribbon_small", 9),
 		RelicData.new("bookmark", "空白书页", "法术位 +1", "tile_empty", 10),
-		RelicData.new("feather", "灵感之羽", "脑海每批至少多浮现 1 个选项", "cloud_pink", 7),
+		RelicData.new("feather", "灵感之羽", "脑海同时可容纳的词云 +1", "cloud_pink", 7),
 		RelicData.new("heart", "强心护符", "生命上限 +8，并恢复 8 点生命", "icon_heart_large", 6),
 		RelicData.new("ember_ring", "火种戒指", "攻击法术每次触发，伤害 +1", "icon_fire", 9),
 		RelicData.new("bracer", "寒铁护腕", "每回合释放时额外获得 3 点护盾", "icon_shield", 8),

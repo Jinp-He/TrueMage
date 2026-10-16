@@ -3,7 +3,7 @@ extends Control
 ## 对决之间的页面（咒语商店、休息处）共用的外观：脑海星空背景、标题横幅、金币与生命、羊皮纸分栏。
 ## 每次交易后子类调用 _rebuild() 整页重建，状态都在 Game 里。
 
-const MIND_BACKGROUND := "res://art/backgrounds/mind_area_background.webp"
+const MIND_BACKGROUND := "res://art/backgrounds/mind_area.webp"
 
 
 func _ready() -> void:

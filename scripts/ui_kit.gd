@@ -84,6 +84,18 @@ static func rich(font_size: int, color: Color = INK) -> RichTextLabel:
 	return node
 
 
+## art/icons/<kind>/<id>.png 存在就用美术给的图标，否则用图集里的占位切图。kind 为 spells、relics 或 affixes。
+static func icon_texture(kind: String, id: String, fallback_piece: String) -> Texture2D:
+	var path := "res://art/icons/%s/%s.png" % [kind, id]
+	return load(path) if ResourceLoader.exists(path) else tex(fallback_piece)
+
+
+static func icon_sprite(kind: String, id: String, fallback_piece: String) -> TextureRect:
+	var node := sprite(fallback_piece)
+	node.texture = icon_texture(kind, id, fallback_piece)
+	return node
+
+
 static func sprite(piece: String) -> TextureRect:
 	var node := TextureRect.new()
 	node.texture = tex(piece)
@@ -146,7 +158,7 @@ static func ink_box(fill: Color, radius: int) -> StyleBoxFlat:
 
 ## 符文对应的切图配色名：符文牌 tile_<名>，云朵 cloud_<名>。
 static func rune_piece_color(rune: String) -> String:
-	return {"a": "orange", "b": "purple", "c": "blue", "d": "green", "e": "gold"}.get(rune, "orange")
+	return {"a": "orange", "b": "purple", "c": "blue", "d": "green", "e": "gold"}.get(rune, "gray")
 
 
 static func rune_color(rune: String) -> Color:

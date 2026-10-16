@@ -1,0 +1,43 @@
+{
+  "frame_size": [
+    535,
+    463
+  ],
+  "frame_count": 8,
+  "source_duration_note": "All GIF frame durations are 0; playback speed must be chosen.",
+  "suggested_preview_fps": 12,
+  "frames": [
+    {
+      "file": "frame_000.png",
+      "source_duration_ms": 0
+    },
+    {
+      "file": "frame_001.png",
+      "source_duration_ms": 0
+    },
+    {
+      "file": "frame_002.png",
+      "source_duration_ms": 0
+    },
+    {
+      "file": "frame_003.png",
+      "source_duration_ms": 0
+    },
+    {
+      "file": "frame_004.png",
+      "source_duration_ms": 0
+    },
+    {
+      "file": "frame_005.png",
+      "source_duration_ms": 0
+    },
+    {
+      "file": "frame_006.png",
+      "source_duration_ms": 0
+    },
+    {
+      "file": "frame_007.png",
+      "source_duration_ms": 0
+    }
+  ]
+}
