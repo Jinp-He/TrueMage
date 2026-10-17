@@ -137,6 +137,7 @@ func _build_rune_adder(spell: SpellData, column: Rect2, top: float, cost: int, o
 func _cloud_tile(card: CloudCard, rect: Rect2, font_size: int) -> void:
 	var cloud := UiKit.sprite(FragmentCloud.piece_for(card.runes))
 	cloud.stretch_mode = TextureRect.STRETCH_SCALE
+	cloud.self_modulate = FragmentCloud.tint_for(card.runes)
 	add_child(UiKit.place(cloud, rect))
 	add_child(UiKit.place(UiKit.centered(UiKit.label(card.runes, font_size, UiKit.INK, UiKit.rune_font())), Rect2(rect.position + Vector2(0, -3), rect.size)))
 	var affix := card.affix()

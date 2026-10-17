@@ -1,35 +1,35 @@
 extends Control
 ## 一场对决：敌人预告 → 限时构句 → 释放结算 → 敌人行动，循环到一方倒下。
 ## 画面按 art/concept/battle_layout_v2.jpg 的版式布局（1672x941），分为敌人区、咒语构筑、灵感碎片、法术列表四块。
+## 美术按 1600x900 画（art/ui/layout/battle_frame.png 是四块面板的边框），放大 1.045 倍正好铺满画面。
 
 ## INTRO：开场教程还没点掉，计时和词云都不动。
 enum Phase { INTRO, BUILD, RESOLVE, OVER }
 
-const STAGE_BACKGROUND := "res://art/backgrounds/battle_stage.png"
-const HAND_FRAMES := "res://art/characters/player/hand_wand/frame_%03d.png"
+const SCREEN_BACKDROP := "res://art/backgrounds/screen_backdrop.png"
+const STAGE_BACKGROUND := "res://art/backgrounds/battle_arena.png"
+const BUILD_BACKGROUND := "res://art/backgrounds/build_area.png"
+const MIND_BACKGROUND := "res://art/backgrounds/mind_clouds.png"
+const FRAME_OVERLAY := "res://art/ui/layout/battle_frame.png"
+const HANDS_ART := "res://art/characters/player/hands.png"
 const ENEMY_ART := "res://art/characters/enemies/%s.png"
-const MIND_BACKGROUND := "res://art/backgrounds/mind_area.webp"
 ## 第一场战斗开始前盖在整个画面上的教程图，点一下才正式开战。
 const TUTORIAL_IMAGE := "res://art/tutorial/battle_basics.webp"
 
-## 舞台背景（1983x793）按舞台比例裁出中下部：留住烛台和地上的法阵。
-const STAGE_SOURCE := Rect2(0, 300, 1983, 432)
-const STAGE_RECT := Rect2(0, 0, 1672, 364)
-## 第一人称持杖的手：0～2 帧是待机（杖尖轻颤），3～7 帧是挥杖施法。
-const HAND_RECT := Rect2(300, -30, 588, 509)
-const HAND_IDLE_FRAMES := [0, 1, 2, 1]
-const HAND_IDLE_FPS := 5.0
-const HAND_CAST_FPS := 14.0
+## 舞台背景（1600x352）整张铺满，下边缘被边框盖住。
+const STAGE_RECT := Rect2(0, 0, 1672, 368)
+## 第一人称的双手（左手持杖），下半截藏在边框后面。待机时上下轻晃，施法时举杖。
+const HAND_RECT := Rect2(130, 76, 480, 275)
 const PLAYER_ANCHOR := Vector2(420, 250)
 const ENEMY_ANCHOR := Vector2(1058, 170)
 
-const SPELL_RECT := Rect2(8, 372, 1254, 228)
+const SPELL_RECT := Rect2(12, 376, 1245, 225)
 const TILE_CENTER_X := 661.0
 const TILE_TOP := 402.0
 const TILE_AREA_WIDTH := 960.0
 const BRACKET_TOP := 486.0
 const BRACKET_AREA_HEIGHT := 58.0
-const MIND_RECT := Rect2(14, 610, 1244, 322)
+const MIND_RECT := Rect2(12, 615, 1245, 315)
 ## 记忆栏：右键词云存入，之后点击放进句子。存着的词云跨回合保留，这场对决结束后回到牌库。
 const MEMORY_SLOTS := 4
 ## 换一批选项要付出的构句时间。
@@ -42,7 +42,7 @@ const EMERGE_INTERVAL := 0.8
 const DRIFT_SPEED_MIN := 14.0
 const DRIFT_SPEED_MAX := 32.0
 ## 脑海区里词云会撞上的固定障碍（脑海区内的坐标）：左下记忆栏、右下计数和按钮。
-const MIND_OBSTACLES := [Rect2(10, 216, 438, 106), Rect2(792, 262, 452, 60)]
+const MIND_OBSTACLES := [Rect2(10, 205, 430, 110), Rect2(792, 255, 452, 60)]
 
 var _phase := Phase.INTRO
 var _turn := 0
@@ -61,9 +61,7 @@ var _seal_next := -1
 var _seal_placed := false
 var _status_layer: Control
 var _hand: TextureRect
-var _hand_frames: Array[Texture2D] = []
-var _hand_casting := false
-var _hand_clock := 0.0
+var _hand_tween: Tween
 var _sentence := ""
 ## 句子里每朵词云的来源与位置：{card, start}。
 var _placed: Array[Dictionary] = []
@@ -110,6 +108,7 @@ func _ready() -> void:
 	_draw_pile.shuffle()
 	_build_backdrop()
 	_build_stage()
+	_build_frame()
 	_build_spell_area()
 	_build_mind_area()
 	_build_spell_list()
@@ -155,7 +154,6 @@ func _show_tutorial() -> void:
 
 
 func _process(delta: float) -> void:
-	_animate_hand_idle(delta)
 	if _phase != Phase.BUILD:
 		return
 	_time_left -= delta
@@ -249,7 +247,7 @@ func _start_turn() -> void:
 	_turn += 1
 	var intents: Array = _enemy.intents
 	_intent = intents[(_turn - 1) % intents.size()]
-	_hand_casting = false
+	_animate_hand_idle()
 	_seal_next = randi_range(1, Game.max_length - 2) if _intent.has("seal") else -1
 	# 上回合句子里的词云和没选的词云都进弃牌堆（封印格不是词云）。
 	for placed in _placed:
@@ -423,21 +421,27 @@ func _cast() -> void:
 	_start_turn()
 
 
-## 待机：前三帧来回轻颤。
-func _animate_hand_idle(delta: float) -> void:
-	if _hand == null or _hand_casting:
+## 待机：双手上下轻晃。
+func _animate_hand_idle() -> void:
+	if _hand == null:
 		return
-	_hand_clock += delta
-	var index: int = HAND_IDLE_FRAMES[int(_hand_clock * HAND_IDLE_FPS) % HAND_IDLE_FRAMES.size()]
-	_hand.texture = _hand_frames[index]
+	if _hand_tween != null:
+		_hand_tween.kill()
+	_hand.position = HAND_RECT.position
+	_hand.rotation = 0.0
+	_hand_tween = _hand.create_tween().set_loops()
+	_hand_tween.tween_property(_hand, "position:y", HAND_RECT.position.y + 8.0, 0.9).set_trans(Tween.TRANS_SINE)
+	_hand_tween.tween_property(_hand, "position:y", HAND_RECT.position.y, 0.9).set_trans(Tween.TRANS_SINE)
 
 
-## 施法：播放挥杖的后五帧，停在最后一帧，直到下一回合开始。
+## 施法：举杖前挥，停在举起的位置，直到下一回合开始。
 func _play_hand_cast() -> void:
-	_hand_casting = true
-	for i in range(3, 8):
-		_hand.texture = _hand_frames[i]
-		await get_tree().create_timer(1.0 / HAND_CAST_FPS).timeout
+	if _hand_tween != null:
+		_hand_tween.kill()
+	_hand_tween = _hand.create_tween().set_parallel()
+	_hand_tween.tween_property(_hand, "position:y", HAND_RECT.position.y - 46.0, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_hand_tween.tween_property(_hand, "rotation", 0.08, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	await _hand_tween.finished
 
 
 ## 敌人攻击之外的动作：干扰下一次构句，或给双方叠状态。
@@ -594,11 +598,11 @@ func _refresh_status() -> void:
 
 func _intent_icon_piece() -> String:
 	if _intent.has("attack"):
-		return "icon_sword"
+		return "icon_attack"
 	if _intent.has("block"):
-		return "icon_shield"
+		return "icon_defense"
 	if _intent.has("haste"):
-		return "icon_hourglass"
+		return "icon_timer"
 	if _intent.has("burn"):
 		return "icon_fire"
 	return "icon_heart"
@@ -650,10 +654,10 @@ func _refresh_statuses() -> void:
 	if _burn > 0:
 		player.append(["icon_fire", "灼烧 %d" % _burn, "每回合结束受 %d 点伤害，然后减 1 层" % _burn])
 	if _haste > 0.0:
-		player.append(["icon_hourglass", "催促 -%d秒" % _haste, "下一次构句时间减少"])
+		player.append(["icon_timer", "催促 -%d秒" % _haste, "下一次构句时间减少"])
 	var enemy: Array = []
 	if _strength > 0:
-		enemy.append(["icon_sword", "力量 %d" % _strength, "每次攻击 +%d" % _strength])
+		enemy.append(["icon_attack", "力量 %d" % _strength, "每次攻击 +%d" % _strength])
 	_place_status_chips(player, Vector2(40, 136))
 	_place_status_chips(enemy, Vector2(1194, 156))
 
@@ -679,7 +683,7 @@ func _place_status_chips(chips: Array, origin: Vector2) -> void:
 func _refresh_timer() -> void:
 	var shown := maxf(_time_left, 0.0)
 	_timer_bar.ratio = shown / Game.build_time
-	_timer_bar.set_fill("bar_hp_fill" if shown <= 5.0 else "bar_timer_fill")
+	_timer_bar.set_fill("hp_bar_fill" if shown <= 5.0 else "timer_bar_fill")
 
 
 func _refresh_sentence() -> void:
@@ -718,13 +722,13 @@ func _rebuild_tiles() -> void:
 		var rect := _tile_rect(i)
 		if i >= _sentence.length():
 			if i == _seal_index and not _seal_placed:
-				_tile_layer.add_child(UiKit.place(UiKit.nine("slot_memory", 24), rect))
+				_tile_layer.add_child(UiKit.place(UiKit.nine("slot_memory_empty", 20), rect))
 				var sealed := UiKit.centered(UiKit.label("封", 40, UiKit.CREAM))
 				sealed.mouse_filter = Control.MOUSE_FILTER_STOP
 				sealed.tooltip_text = "封印：句子写到这里时会自动填上 x，词云不能跨过这一格"
 				_tile_layer.add_child(UiKit.place(sealed, rect))
 			else:
-				_tile_layer.add_child(UiKit.place(UiKit.nine("tile_empty", 24), rect))
+				_tile_layer.add_child(UiKit.place(UiKit.nine("rune_tile_empty", 24), rect))
 			continue
 		var rune := _sentence[i]
 		var tile := UiKit.nine(_tile_piece(i, rune), 24)
@@ -779,7 +783,7 @@ func _card_at(index: int) -> CloudCard:
 
 
 func _tile_piece(_index: int, rune: String) -> String:
-	return "tile_" + UiKit.rune_piece_color(rune)
+	return "rune_tile_" + UiKit.rune_piece_color(rune)
 
 
 func _rebuild_brackets() -> void:
@@ -898,21 +902,35 @@ func _reroll() -> void:
 # ---------------------------------------------------------------- 搭建界面
 
 func _build_backdrop() -> void:
-	var backdrop := ColorRect.new()
-	backdrop.color = UiKit.NIGHT
-	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(UiKit.place(backdrop, Rect2(0, 0, 1672, 941)))
+	add_child(UiKit.place(_full_texture(SCREEN_BACKDROP), Rect2(0, 0, 1672, 941)))
+
+
+## 四块面板的边框，盖在各区背景上面、各区内容下面。
+func _build_frame() -> void:
+	add_child(UiKit.place(_full_texture(FRAME_OVERLAY), Rect2(0, 0, 1672, 941)))
+
+
+func _full_texture(path: String) -> TextureRect:
+	var rect := TextureRect.new()
+	rect.texture = load(path)
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rect
+
+
+## 血条：带心形的底板，右边一条槽里放按比例伸缩的血量。
+func _hp_bar(rect: Rect2) -> UiBar:
+	_stage.add_child(UiKit.place(UiKit.sprite("hp_bar_base"), rect))
+	var track := Rect2(rect.position + rect.size * Vector2(48.0 / 285.0, 8.0 / 39.0), rect.size * Vector2(228.0 / 285.0, 23.0 / 39.0))
+	var bar := UiBar.create("hp_bar_track", "hp_bar_fill", track.size, Vector2(3, 3))
+	bar.position = track.position
+	_stage.add_child(bar)
+	return bar
 
 
 func _build_stage() -> void:
-	var stage_texture := AtlasTexture.new()
-	stage_texture.atlas = load(STAGE_BACKGROUND)
-	stage_texture.region = STAGE_SOURCE
-	_stage = TextureRect.new()
-	_stage.texture = stage_texture
-	_stage.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_stage.stretch_mode = TextureRect.STRETCH_SCALE
-	_stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stage = _full_texture(STAGE_BACKGROUND)
 	add_child(UiKit.place(_stage, STAGE_RECT))
 
 	# 有立绘就站在法阵上，没有就放一块名牌占位。
@@ -933,37 +951,25 @@ func _build_stage() -> void:
 	nameplate.visible = not ResourceLoader.exists(enemy_art)
 	_stage.add_child(UiKit.place(nameplate, Rect2(ENEMY_ANCHOR - Vector2(130, 30), Vector2(260, 64))))
 
-	for i in 8:
-		_hand_frames.append(load(HAND_FRAMES % i))
-	_hand = TextureRect.new()
-	_hand.texture = _hand_frames[0]
-	_hand.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_hand.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
-	_hand.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hand = _full_texture(HANDS_ART)
+	_hand.pivot_offset = HAND_RECT.size * Vector2(0.3, 1.0)
 	_stage.add_child(UiKit.place(_hand, HAND_RECT))
+	_animate_hand_idle()
 
-	_stage.add_child(UiKit.place(UiKit.nine("pill_parchment", 30), Rect2(30, 20, 452, 60)))
-	_stage.add_child(UiKit.place(UiKit.sprite("icon_heart_large"), Rect2(48, 27, 50, 46)))
-	_player_hp_bar = UiBar.create("bar_hp_frame", "bar_hp_fill", Vector2(274, 46), Vector2(20, 11))
-	_player_hp_bar.position = Vector2(104, 27)
-	_stage.add_child(_player_hp_bar)
-	_player_hp_label = UiKit.label("", 24)
-	_stage.add_child(UiKit.place(_player_hp_label, Rect2(388, 26, 90, 48)))
+	_player_hp_bar = _hp_bar(Rect2(30, 26, 380, 52))
+	_player_hp_label = UiKit.outlined(UiKit.label("", 24, UiKit.CREAM), 6)
+	_stage.add_child(UiKit.place(_player_hp_label, Rect2(420, 28, 100, 48)))
 	_player_hp_label.tooltip_text = Game.character.name
 	_player_hp_label.mouse_filter = Control.MOUSE_FILTER_STOP
 
-	_stage.add_child(UiKit.place(UiKit.nine("pill_parchment", 30), Rect2(1194, 28, 452, 60)))
-	_stage.add_child(UiKit.place(UiKit.sprite("icon_heart_large"), Rect2(1212, 35, 50, 46)))
-	_enemy_hp_bar = UiBar.create("bar_hp_frame", "bar_hp_fill", Vector2(274, 46), Vector2(20, 11))
-	_enemy_hp_bar.position = Vector2(1268, 35)
-	_stage.add_child(_enemy_hp_bar)
-	_enemy_hp_label = UiKit.label("", 24)
-	_stage.add_child(UiKit.place(_enemy_hp_label, Rect2(1552, 34, 90, 48)))
+	_enemy_hp_bar = _hp_bar(Rect2(1170, 30, 380, 52))
+	_enemy_hp_label = UiKit.outlined(UiKit.label("", 24, UiKit.CREAM), 6)
+	_stage.add_child(UiKit.place(_enemy_hp_label, Rect2(1558, 32, 100, 48)))
 	_enemy_hp_label.tooltip_text = _enemy.name
 	_enemy_hp_label.mouse_filter = Control.MOUSE_FILTER_STOP
 
-	_stage.add_child(UiKit.place(UiKit.nine("pill_dark", 30), Rect2(1264, 90, 312, 60)))
-	_intent_icon = UiKit.sprite("icon_sword")
+	_stage.add_child(UiKit.place(UiKit.nine("slot_intent", 22, 0), Rect2(1264, 90, 312, 58)))
+	_intent_icon = UiKit.sprite("icon_attack")
 	_stage.add_child(UiKit.place(_intent_icon, Rect2(1284, 99, 42, 42)))
 	_intent_label = UiKit.rich(26, UiKit.CREAM)
 	_intent_label.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -972,9 +978,9 @@ func _build_stage() -> void:
 	_status_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stage.add_child(_status_layer)
 
-	_stage.add_child(UiKit.place(UiKit.nine("pill_dark", 30), Rect2(640, 302, 314, 62)))
+	_stage.add_child(UiKit.place(UiKit.nine("slot_intent", 22, 0), Rect2(640, 286, 334, 58)))
 	_stats_label = UiKit.rich(24, UiKit.CREAM)
-	_stage.add_child(UiKit.place(_stats_label, Rect2(648, 318, 298, 36)))
+	_stage.add_child(UiKit.place(_stats_label, Rect2(648, 298, 318, 36)))
 
 	# 已拥有的遗物排在玩家血条下方，悬停看说明。
 	for i in Game.relics.size():
@@ -987,13 +993,13 @@ func _build_stage() -> void:
 
 ## 标题横幅：空白卷轴上写字，便于跟随术语表改名。
 func _banner(text: String, rect: Rect2) -> void:
-	add_child(UiKit.place(UiKit.sprite("ribbon_small"), rect))
+	add_child(UiKit.place(UiKit.sprite("ribbon_header"), rect))
 	add_child(UiKit.place(UiKit.centered(UiKit.label(text, 26)), Rect2(rect.position + Vector2(0, -4), rect.size)))
 
 
 func _build_spell_area() -> void:
-	add_child(UiKit.place(UiKit.nine("panel_parchment_large", 46), SPELL_RECT))
-	_banner("咒语构筑", Rect2(14, 352, 186, 56))
+	add_child(UiKit.place(_full_texture(BUILD_BACKGROUND), SPELL_RECT))
+	_banner("咒语构筑", Rect2(14, 352, 186, 65))
 
 	_tile_layer = Control.new()
 	_tile_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1002,21 +1008,21 @@ func _build_spell_area() -> void:
 	_bracket_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_bracket_layer)
 
-	add_child(UiKit.place(UiKit.sprite("icon_hourglass"), Rect2(282, 544, 50, 62)))
-	_timer_bar = UiBar.create("bar_timer_frame", "bar_timer_fill", Vector2(570, 32), Vector2(12, 7))
-	_timer_bar.position = Vector2(338, 561)
+	add_child(UiKit.place(UiKit.sprite("icon_timer"), Rect2(282, 548, 48, 56)))
+	_timer_bar = UiBar.create("timer_bar_track", "timer_bar_fill", Vector2(570, 26), Vector2(3, 3))
+	_timer_bar.position = Vector2(338, 563)
 	add_child(_timer_bar)
 
-	# 悬停态的贴图带一圈火花，比按钮本体大，所以单独叠一张。
-	var button_rect := Rect2(972, 538, 196, 78)
-	_cast_hover = UiKit.sprite("button_cast_hover")
+	# 悬停时在按钮四周叠一圈火花。
+	var button_rect := Rect2(980, 516, 176, 81)
+	_cast_hover = UiKit.sprite("sparkle_highlight")
 	_cast_hover.stretch_mode = TextureRect.STRETCH_SCALE
 	_cast_hover.visible = false
-	add_child(UiKit.place(_cast_hover, Rect2(button_rect.position - Vector2(12, 15), Vector2(216, 112))))
 	_cast_button = TextureButton.new()
-	_cast_button.texture_normal = UiKit.tex("button_cast")
-	_cast_button.texture_pressed = UiKit.tex("button_cast_pressed")
-	_cast_button.texture_disabled = UiKit.tex("button_cast_pressed")
+	_cast_button.texture_normal = UiKit.tex("button_purple")
+	_cast_button.texture_hover = UiKit.tex("button_purple_hover")
+	_cast_button.texture_pressed = UiKit.tex("button_purple_hover")
+	_cast_button.texture_disabled = UiKit.tex("button_purple_hover")
 	_cast_button.ignore_texture_size = true
 	_cast_button.stretch_mode = TextureButton.STRETCH_SCALE
 	_cast_button.focus_mode = Control.FOCUS_NONE
@@ -1025,6 +1031,7 @@ func _build_spell_area() -> void:
 	_cast_button.mouse_entered.connect(func() -> void: _cast_hover.visible = not _cast_button.disabled)
 	_cast_button.mouse_exited.connect(func() -> void: _cast_hover.visible = false)
 	add_child(UiKit.place(_cast_button, button_rect))
+	add_child(UiKit.place(_cast_hover, Rect2(button_rect.position - Vector2(20, 4), Vector2(216, 76))))
 	var cast_label := UiKit.centered(UiKit.label("释放", 40, UiKit.CREAM))
 	add_child(UiKit.place(UiKit.outlined(cast_label, 6), Rect2(button_rect.position + Vector2(0, -3), button_rect.size)))
 
@@ -1045,16 +1052,14 @@ func _build_mind_area() -> void:
 	_cloud_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	clip.add_child(UiKit.place(_cloud_layer, Rect2(Vector2.ZERO, MIND_RECT.size)))
 
-	add_child(UiKit.place(UiKit.nine("frame_starry", 34), Rect2(MIND_RECT.position - Vector2(6, 6), MIND_RECT.size + Vector2(12, 12))))
-	_banner("灵感碎片", Rect2(14, 590, 186, 56))
+	_banner("灵感碎片", Rect2(14, 590, 186, 65))
 
-	# 记忆栏
-	var memory_rect := Rect2(24, 828, 428, 96)
-	add_child(UiKit.place(UiKit.nine("pill_parchment", 30), memory_rect))
-	var memory_title := UiKit.centered(UiKit.label("记忆", 26))
+	# 记忆栏：底板左端画着灯泡，悬停看说明。
+	add_child(UiKit.place(UiKit.sprite("panel_memory"), Rect2(24, 824, 412, 97)))
+	var memory_title := Control.new()
 	memory_title.mouse_filter = Control.MOUSE_FILTER_STOP
-	memory_title.tooltip_text = "右键词云存入记忆；点击记忆中的词云放进句子。\n存着的词云跨回合保留。"
-	add_child(UiKit.place(memory_title, Rect2(34, 846, 66, 60)))
+	memory_title.tooltip_text = "记忆：右键词云存入记忆；点击记忆中的词云放进句子。\n存着的词云跨回合保留。"
+	add_child(UiKit.place(memory_title, Rect2(24, 824, 66, 97)))
 	_memory_layer = Control.new()
 	_memory_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_memory_layer)
@@ -1078,12 +1083,14 @@ func _refresh_memory() -> void:
 	UiKit.clear_children(_memory_layer)
 	var room := Game.max_length - _sentence.length()
 	for i in MEMORY_SLOTS:
-		var rect := Rect2(108 + 84 * i, 838, 78, 76)
+		var rect := Rect2(98 + 84 * i, 836, 74, 74)
 		var card: CloudCard = _memory[i]
 		if card == null:
-			_memory_layer.add_child(UiKit.place(UiKit.nine("slot_memory", 24), rect))
+			_memory_layer.add_child(UiKit.place(UiKit.sprite("slot_memory_empty"), rect))
 			continue
-		var tile := UiKit.nine("tile_" + UiKit.rune_piece_color(card.runes[0]), 18)
+		var tile := UiKit.sprite("slot_memory_filled")
+		tile.stretch_mode = TextureRect.STRETCH_SCALE
+		tile.self_modulate = FragmentCloud.tint_for(card.runes)
 		tile.modulate = Color.WHITE if card.runes.length() <= room else Color(0.55, 0.55, 0.6)
 		_memory_layer.add_child(UiKit.place(tile, rect))
 		var font_size := 34 if card.runes.length() <= 2 else 26
@@ -1099,10 +1106,10 @@ func _refresh_memory() -> void:
 
 
 func _build_spell_list() -> void:
-	add_child(UiKit.place(UiKit.nine("panel_dark", 26), Rect2(1266, 372, 400, 562)))
-	_banner("法术列表", Rect2(1276, 352, 186, 56))
+	_banner("法术列表", Rect2(1276, 352, 186, 65))
+	# 右下角边框上画着书和蜡烛，卡片排到它上方为止。
 	var count := Game.spells.size()
-	var step := minf(152.0, 512.0 / count)
+	var step := minf(152.0, 448.0 / count)
 	for i in count:
 		var card := SpellCard.create(Game.spells[i], Vector2(372, step - 6.0))
 		card.position = Vector2(1280, 416 + step * i)

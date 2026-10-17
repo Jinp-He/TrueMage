@@ -217,26 +217,26 @@ static func catalog() -> Array[SpellData]:
 	return [
 		# a 火焰：最直接的伤害。火焰箭和火球以 c 结尾，可以接护盾系。
 		SpellData.new("fire_arrow", "火焰箭", "ac", {"damage": 3}, "icon_fire", 3),
-		SpellData.new("fireball", "火球术", "aaac", {"damage": 11}, "mascot_fireball", 6),
+		SpellData.new("fireball", "火球术", "aaac", {"damage": 11}, "spell_fire", 6),
 		SpellData.new("ember", "余烬术", "ca", {"damage": 3}, "icon_fire", 4),
-		SpellData.new("blaze", "烈焰术", "acaa", {"damage": 11}, "mascot_fireball", 7),
-		SpellData.new("meteor", "陨星术", "abaa", {"damage": 14}, "mascot_fireball", 10),
+		SpellData.new("blaze", "烈焰术", "acaa", {"damage": 11}, "spell_fire", 7),
+		SpellData.new("meteor", "陨星术", "abaa", {"damage": 14}, "spell_fire", 10),
 		# b 雷霆：穿透伤害，专克防御意图。雷击以 a 开头，可以接在火焰后面；雷霆打击以 a 结尾，接回火焰。
-		SpellData.new("zap", "电击术", "bd", {"damage": 3, "pierce": true}, "mascot_spark", 4),
-		SpellData.new("thunder_strike", "雷霆打击", "bba", {"damage": 7, "pierce": true}, "mascot_spark", 7),
-		SpellData.new("bolt", "雷击术", "abb", {"damage": 7, "pierce": true}, "mascot_spark", 6),
-		SpellData.new("chain", "连锁闪电", "babb", {"damage": 11, "pierce": true}, "mascot_spark", 8),
-		SpellData.new("storm", "雷暴术", "cbbb", {"damage": 12, "pierce": true}, "mascot_spark", 9),
+		SpellData.new("zap", "电击术", "bd", {"damage": 3, "pierce": true}, "spell_spark", 4),
+		SpellData.new("thunder_strike", "雷霆打击", "bba", {"damage": 7, "pierce": true}, "spell_spark", 7),
+		SpellData.new("bolt", "雷击术", "abb", {"damage": 7, "pierce": true}, "spell_spark", 6),
+		SpellData.new("chain", "连锁闪电", "babb", {"damage": 11, "pierce": true}, "spell_spark", 8),
+		SpellData.new("storm", "雷暴术", "cbbb", {"damage": 12, "pierce": true}, "spell_spark", 9),
 		# c 护盾：以 c 开头的可以接在火焰箭、火球后面，护甲和棘甲把护盾接回雷霆。
-		SpellData.new("armor", "护甲术", "ccb", {"shield": 8}, "mascot_shield", 4),
+		SpellData.new("armor", "护甲术", "ccb", {"shield": 8}, "spell_shield", 4),
 		SpellData.new("ward", "结界术", "acc", {"shield": 8}, "icon_shield", 5),
 		SpellData.new("thorn", "棘甲术", "cb", {"shield": 4, "damage": 2}, "icon_shield", 5),
-		SpellData.new("bulwark", "壁垒术", "ccdc", {"shield": 12}, "mascot_shield", 8),
+		SpellData.new("bulwark", "壁垒术", "ccdc", {"shield": 12}, "spell_shield", 8),
 		# d 治疗：从护盾或火焰过渡过来。
 		SpellData.new("mend", "愈合术", "da", {"heal": 3}, "icon_heart_large", 4),
 		SpellData.new("revive", "复苏术", "cdd", {"heal": 7}, "icon_heart_large", 6),
 		SpellData.new("drain", "汲取术", "add", {"damage": 4, "heal": 3}, "icon_heart_large", 7),
-		SpellData.new("lifeward", "生命结界", "dcc", {"shield": 5, "heal": 3}, "mascot_shield", 7),
+		SpellData.new("lifeward", "生命结界", "dcc", {"shield": 5, "heal": 3}, "spell_shield", 7),
 		# e 金币：占用句子位置换取经济，局内越早买越赚。
 		SpellData.new("coin", "招财术", "ea", {"gold": 1}, "icon_coin", 4),
 		SpellData.new("midas", "点金术", "aee", {"damage": 3, "gold": 1}, "icon_coin", 6),
@@ -246,9 +246,9 @@ static func catalog() -> Array[SpellData]:
 		SpellData.new("missile", "魔法飞弹", "aa", {"damage": 1}, "icon_fire", 5, BOOKEND),
 		SpellData.new("aegis_arc", "回环结界", "cc", {"shield": 1}, "icon_shield", 5, BOOKEND),
 		# 多样：和按主题堆符文的咒语相冲，4 种不同符文连在一起不容易。
-		SpellData.new("prism", "元素爆发", "????", {"damage": 7}, "mascot_fireball", 7, VARIETY),
+		SpellData.new("prism", "元素爆发", "????", {"damage": 7}, "spell_fire", 7, VARIETY),
 		# 计数：雷系咒语本身就有很多 b，凑 3 个很容易，所以数值低。
-		SpellData.new("thundercloud", "雷云术", "bbb", {"damage": 3, "pierce": true}, "mascot_spark", 5, COUNT),
+		SpellData.new("thundercloud", "雷云术", "bbb", {"damage": 3, "pierce": true}, "spell_spark", 5, COUNT),
 		# 缺席：不带火系就能触发，最容易，数值最低。
 		SpellData.new("frost_wall", "寒霜壁", "a", {"shield": 3}, "icon_shield", 4, ABSENT),
 	]

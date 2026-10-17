@@ -16,13 +16,17 @@ static func create(p_spell: SpellData, card_size: Vector2, tag: String = "") -> 
 	return card
 
 
+## 被当前句子触发时纸页泛起金光。
 func set_highlight(on: bool) -> void:
-	_frame.texture = UiKit.tex("card_spell_highlight" if on else "card_spell")
+	_frame.modulate = Color(1.15, 1.02, 0.62) if on else Color.WHITE
 
 
 func _build(tag: String) -> void:
 	var k := clampf(size.y / 160.0, 0.62, 1.0)
-	_frame = UiKit.nine("card_spell", 36)
+	# 纸页左上角是线圈、右下角是卷角，九宫格留出这两块不拉伸。
+	_frame = UiKit.nine("card_spell_page", 40)
+	_frame.patch_margin_left = 130
+	_frame.patch_margin_top = 34
 	_frame.size = size
 	add_child(_frame)
 

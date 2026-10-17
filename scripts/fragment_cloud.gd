@@ -73,6 +73,7 @@ func dismiss() -> void:
 	if _gone:
 		return
 	_cloud.texture = UiKit.tex("cloud_fading")
+	_cloud.self_modulate = Color.WHITE
 	_cloud.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_leave(Vector2(0.9, 0.9), 0.3)
 
@@ -88,6 +89,7 @@ func _build() -> void:
 	var body := Vector2(size.x, size.y - BAR_HEIGHT)
 	_cloud = UiKit.sprite(_cloud_piece())
 	_cloud.stretch_mode = TextureRect.STRETCH_SCALE
+	_cloud.self_modulate = tint_for(text)
 	_cloud.size = body
 	add_child(_cloud)
 
@@ -132,13 +134,21 @@ func _cloud_piece() -> String:
 	return piece_for(text)
 
 
-## 单一符文的词云用该符文的颜色，混合符文用粉色；单符文用小云，多符文用宽云。
+## 云朵是白底黑边的线稿（cloud_shape_1～3），按符文着色；同样的符文总是同一种云形。
 static func piece_for(text: String) -> String:
+	return "cloud_shape_%d" % (1 + absi(text.hash()) % 3)
+
+
+## 单一符文的词云用该符文颜色的浅色，混合符文用粉色，杂念用灰色。
+static func tint_for(text: String) -> Color:
 	var colors := {}
 	for rune in text:
-		colors[UiKit.rune_piece_color(rune)] = true
-	var color: String = colors.keys()[0] if colors.size() == 1 else "pink"
-	return "cloud_%s%s" % [color, "" if text.length() == 1 else "_wide"]
+		colors[rune] = true
+	if colors.size() > 1:
+		return Color("f6c9dc")
+	if text[0] == CloudCard.JUNK_RUNE:
+		return Color("c9c6c2")
+	return UiKit.rune_color(text[0]).lightened(0.55)
 
 
 func _process(delta: float) -> void:
