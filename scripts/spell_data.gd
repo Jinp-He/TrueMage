@@ -19,7 +19,12 @@ const RUNES := ["a", "b", "c", "d", "e"]
 ## 仅用于显示：暖色符文用橙色牌和橙色云，冷色符文用蓝色。
 const WARM_RUNES := ["a", "b", "e"]
 ## 每追加或移除一个符文，主效果变化的数值。
-const EFFECT_STEP := {"damage": 3, "shield": 3, "heal": 2, "gold": 1}
+## 数值曲线：以两符文 3 点为基准，L 符文 3(L-1)+1，即 3 / 7 / 11 / 15……每多一个符文 +4，
+## 保证长咒式一次触发比在同样的格子里塞短咒语更值。
+##
+## 同一法术可以和自己重叠触发，所以咒语表里的咒式最多和自己共用首尾一个符文（如 acaa 可写成 acaacaa），
+## 不用 aa、ccc、abab 这种能大段自我重叠的咒式，否则一串相同符文就能反复触发。
+const EFFECT_STEP := {"damage": 4, "shield": 4, "heal": 4, "gold": 1}
 const MIN_PATTERN_LENGTH := 2
 
 const EXACT := "exact"
@@ -210,32 +215,32 @@ func bracket_text(mult: int = 1) -> String:
 
 static func catalog() -> Array[SpellData]:
 	return [
-		# a 火焰：最直接的伤害。火球以 c 结尾，可以接护盾系。
-		SpellData.new("fire_arrow", "火焰箭", "aa", {"damage": 3}, "icon_fire", 3),
-		SpellData.new("fireball", "火球术", "aaac", {"damage": 8}, "mascot_fireball", 6),
+		# a 火焰：最直接的伤害。火焰箭和火球以 c 结尾，可以接护盾系。
+		SpellData.new("fire_arrow", "火焰箭", "ac", {"damage": 3}, "icon_fire", 3),
+		SpellData.new("fireball", "火球术", "aaac", {"damage": 11}, "mascot_fireball", 6),
 		SpellData.new("ember", "余烬术", "ca", {"damage": 3}, "icon_fire", 4),
-		SpellData.new("blaze", "烈焰术", "acaa", {"damage": 9}, "mascot_fireball", 7),
-		SpellData.new("meteor", "陨星术", "abaa", {"damage": 13}, "mascot_fireball", 10),
-		# b 雷霆：穿透伤害，专克防御意图。雷击以 a 开头，可以接在火焰后面。
-		SpellData.new("zap", "电击术", "bb", {"damage": 3, "pierce": true}, "mascot_spark", 4),
-		SpellData.new("thunder_strike", "雷霆打击", "abab", {"damage": 8, "pierce": true}, "mascot_spark", 7),
-		SpellData.new("bolt", "雷击术", "abb", {"damage": 6, "pierce": true}, "mascot_spark", 6),
-		SpellData.new("chain", "连锁闪电", "babb", {"damage": 9, "pierce": true}, "mascot_spark", 8),
-		SpellData.new("storm", "雷暴术", "cbbb", {"damage": 11, "pierce": true}, "mascot_spark", 9),
-		# c 护盾：以 c 开头的可以接在火球后面，棘甲把护盾接回雷霆。
-		SpellData.new("armor", "护甲术", "ccc", {"shield": 6}, "mascot_shield", 4),
-		SpellData.new("ward", "结界术", "acc", {"shield": 7}, "icon_shield", 5),
+		SpellData.new("blaze", "烈焰术", "acaa", {"damage": 11}, "mascot_fireball", 7),
+		SpellData.new("meteor", "陨星术", "abaa", {"damage": 14}, "mascot_fireball", 10),
+		# b 雷霆：穿透伤害，专克防御意图。雷击以 a 开头，可以接在火焰后面；雷霆打击以 a 结尾，接回火焰。
+		SpellData.new("zap", "电击术", "bd", {"damage": 3, "pierce": true}, "mascot_spark", 4),
+		SpellData.new("thunder_strike", "雷霆打击", "bba", {"damage": 7, "pierce": true}, "mascot_spark", 7),
+		SpellData.new("bolt", "雷击术", "abb", {"damage": 7, "pierce": true}, "mascot_spark", 6),
+		SpellData.new("chain", "连锁闪电", "babb", {"damage": 11, "pierce": true}, "mascot_spark", 8),
+		SpellData.new("storm", "雷暴术", "cbbb", {"damage": 12, "pierce": true}, "mascot_spark", 9),
+		# c 护盾：以 c 开头的可以接在火焰箭、火球后面，护甲和棘甲把护盾接回雷霆。
+		SpellData.new("armor", "护甲术", "ccb", {"shield": 8}, "mascot_shield", 4),
+		SpellData.new("ward", "结界术", "acc", {"shield": 8}, "icon_shield", 5),
 		SpellData.new("thorn", "棘甲术", "cb", {"shield": 4, "damage": 2}, "icon_shield", 5),
-		SpellData.new("bulwark", "壁垒术", "ccdc", {"shield": 11}, "mascot_shield", 8),
+		SpellData.new("bulwark", "壁垒术", "ccdc", {"shield": 12}, "mascot_shield", 8),
 		# d 治疗：从护盾或火焰过渡过来。
-		SpellData.new("mend", "愈合术", "dd", {"heal": 3}, "icon_heart_large", 4),
-		SpellData.new("revive", "复苏术", "cdd", {"heal": 5}, "icon_heart_large", 6),
-		SpellData.new("drain", "汲取术", "add", {"damage": 3, "heal": 3}, "icon_heart_large", 7),
-		SpellData.new("lifeward", "生命结界", "dcd", {"shield": 5, "heal": 3}, "mascot_shield", 7),
+		SpellData.new("mend", "愈合术", "da", {"heal": 3}, "icon_heart_large", 4),
+		SpellData.new("revive", "复苏术", "cdd", {"heal": 7}, "icon_heart_large", 6),
+		SpellData.new("drain", "汲取术", "add", {"damage": 4, "heal": 3}, "icon_heart_large", 7),
+		SpellData.new("lifeward", "生命结界", "dcc", {"shield": 5, "heal": 3}, "mascot_shield", 7),
 		# e 金币：占用句子位置换取经济，局内越早买越赚。
-		SpellData.new("coin", "招财术", "ee", {"gold": 1}, "icon_coin", 4),
+		SpellData.new("coin", "招财术", "ea", {"gold": 1}, "icon_coin", 4),
 		SpellData.new("midas", "点金术", "aee", {"damage": 3, "gold": 1}, "icon_coin", 6),
-		SpellData.new("treasure", "聚宝术", "eece", {"gold": 3}, "icon_coin", 8),
+		SpellData.new("treasure", "聚宝术", "eece", {"gold": 4}, "icon_coin", 8),
 		# 条件咒式：不要求原样连续，越容易达成数值越低。
 		# 首尾呼应：两个 a 之间夹几个符文就算几倍，最多 5 倍（7 格句子）。
 		SpellData.new("missile", "魔法飞弹", "aa", {"damage": 1}, "icon_fire", 5, BOOKEND),
