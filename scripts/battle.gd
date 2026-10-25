@@ -1,4 +1,9 @@
 extends Control
+
+const BattleEffects = preload("res://scripts/battle_effects.gd")
+signal spell_animation_started(spell_id: String, cover: Array)
+var _effects: Node2D
+var _enemy_visual: Control
 ## 一场对决：敌人预告 → 限时构句 → 释放结算 → 敌人行动，循环到一方倒下。
 ## 画面按 art/concept/battle_layout_v2.jpg 的版式布局（1672x941），分为敌人区、咒语构筑、灵感碎片、法术列表四块。
 ## 美术按 1600x900 画（art/ui/layout/battle_frame.png 是四块面板的边框），放大 1.045 倍正好铺满画面。
@@ -31,7 +36,7 @@ const BRACKET_TOP := 486.0
 const BRACKET_AREA_HEIGHT := 58.0
 const MIND_RECT := Rect2(12, 615, 1245, 315)
 ## 记忆栏：右键词云存入，之后点击放进句子。存着的词云跨回合保留，这场对决结束后回到牌库。
-const MEMORY_SLOTS := 4
+const MEMORY_SLOTS := 1
 ## 换一批选项要付出的构句时间。
 const REROLL_TIME_COST := 3.0
 ## 互换句子里相邻两朵词云要付出的构句时间。
@@ -50,6 +55,8 @@ var _enemy: Dictionary
 var _enemy_hp: int
 var _intent: Dictionary
 ## 敌人力量：每次攻击额外加这么多。
+var _fire_affinity := 0
+var _affinity_block_used := 0
 var _strength := 0
 ## 玩家身上的灼烧层数：每回合结束受等量伤害，然后减 1。
 var _burn := 0
@@ -112,7 +119,11 @@ func _ready() -> void:
 	_build_spell_area()
 	_build_mind_area()
 	_build_spell_list()
+	_effects = BattleEffects.new()
+	_effects.z_index = 5
+	add_child(_effects)
 	_popup_layer = Control.new()
+	_popup_layer.z_index = 6
 	_popup_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_popup_layer)
 	if Game.tutorial_seen:
@@ -244,6 +255,7 @@ func _collide(a: FragmentCloud, b: FragmentCloud) -> void:
 # ---------------------------------------------------------------- 回合流程
 
 func _start_turn() -> void:
+	_affinity_block_used = 0
 	_turn += 1
 	var intents: Array = _enemy.intents
 	_intent = intents[(_turn - 1) % intents.size()]
@@ -296,9 +308,14 @@ func _can_append(card: CloudCard) -> bool:
 
 
 func _append(card: CloudCard) -> void:
+	if _phase != Phase.BUILD or not _can_append(card):
+		return
 	_placed.append({"card": card, "start": _sentence.length()})
 	_sentence += card.runes
 	_apply_place_affix(card.affix())
+	_apply_fire_affinity(card.runes)
+	if _phase == Phase.OVER:
+		return
 	_place_seal_if_due()
 	_refresh_sentence()
 	_auto_cast_if_full()
@@ -320,6 +337,7 @@ func _on_cloud_stored(cloud: FragmentCloud) -> void:
 	var slot := _memory.find(null)
 	if slot == -1:
 		cloud.reject()
+		_popup("记忆已满，请先使用", Vector2(260, 800), UiKit.INK, 24)
 		return
 	_memory[slot] = cloud.card
 	_clouds.erase(cloud)
@@ -370,19 +388,19 @@ func _cast() -> void:
 		cloud.frozen = true
 		cloud.modulate.a = minf(cloud.modulate.a, 0.4)
 
-	_play_hand_cast()
-	await _play_cast_sequence()
-	var result := _preview()
+	# Roll once: animation and settlement share the exact same results.
+	var result := _preview(true)
+	Game.hp = maxi(0, Game.hp - result.self_damage)
+	if result.self_damage > 0:
+		_popup("生命 -%d" % result.self_damage, PLAYER_ANCHOR, UiKit.RED, 32)
+	if Game.hp <= 0:
+		_refresh_status()
+		_finish(false)
+		return
+	await _play_cast_sequence(result)
+	_fire_affinity = result.affinity
 	if _matches.is_empty():
 		_popup("咒语落空…", PLAYER_ANCHOR, UiKit.CREAM)
-	if _intent.has("block"):
-		_popup("防御 %d" % _intent.block, ENEMY_ANCHOR + Vector2(0, -40), UiKit.BLUE.lightened(0.5))
-	if result.damage > 0:
-		_enemy_hp = maxi(0, _enemy_hp - result.dealt)
-		_popup("-%d" % result.dealt, ENEMY_ANCHOR, UiKit.RED.lightened(0.25), 64)
-		_shake(_stage)
-	if result.shield > 0:
-		_popup("护盾 +%d" % result.shield, PLAYER_ANCHOR + Vector2(0, -40), UiKit.BLUE.lightened(0.5))
 	if result.heal > 0:
 		Game.heal(result.heal)
 		_popup("生命 +%d" % result.heal, PLAYER_ANCHOR + Vector2(0, 30), UiKit.GREEN.lightened(0.4))
@@ -390,13 +408,14 @@ func _cast() -> void:
 		Game.gold += result.gold
 		_popup("金币 +%d" % result.gold, PLAYER_ANCHOR + Vector2(0, 100), UiKit.GOLD.lightened(0.4))
 	_refresh_status()
-	await get_tree().create_timer(1.0).timeout
+	await get_tree().create_timer(0.2).timeout
 
 	if _enemy_hp <= 0:
 		_finish(true)
 		return
 
 	if _intent.has("attack"):
+		await _effects.enemy_attack(_enemy_visual, PLAYER_ANCHOR, result.taken == 0, result.shield > 0)
 		Game.hp = maxi(0, Game.hp - result.taken)
 		if result.taken > 0:
 			_popup("-%d" % result.taken, PLAYER_ANCHOR, UiKit.RED.lightened(0.25), 64)
@@ -468,46 +487,93 @@ func _apply_enemy_skills() -> void:
 		_popup("力量 +%d" % _intent.strength, at + Vector2(0, -40), UiKit.RED.lightened(0.3), 36)
 
 
-## 释放动画：符文从左到右依次点亮；某个法术的最后一个符文亮起时，它的括号闪一下并报出效果。
-## 没被任何法术用上的符文点亮后变暗。全部亮完再结算。
-func _play_cast_sequence() -> void:
-	const STEP := 0.17
-	for i in _tile_nodes.size():
-		var tile := _tile_nodes[i]
-		tile.pivot_offset = tile.size / 2.0
-		var lit := Color(1.3, 1.25, 1.05) if _matches_covering(i) > 0 else Color(0.62, 0.6, 0.6)
-		var tween := tile.create_tween()
-		tween.tween_property(tile, "scale", Vector2(1.16, 1.16), 0.08)
-		tween.parallel().tween_property(tile, "modulate", Color(1.6, 1.5, 1.15), 0.08)
-		tween.tween_property(tile, "scale", Vector2.ONE, 0.12)
-		tween.parallel().tween_property(tile, "modulate", lit, 0.12)
-		for k in _matches.size():
-			var m: Dictionary = _matches[k]
-			if m.start + m.length - 1 == i:
-				_flash_spell(k, tile.get_global_rect().get_center())
-		await get_tree().create_timer(STEP).timeout
-	await get_tree().create_timer(0.3).timeout
+## Each match owns one full highlight/release cycle, including shared runes.
+func _play_cast_sequence(result: Dictionary) -> void:
+	var enemy_block := maxi(0, int(_intent.get("block", 0)) - _affinity_block_used)
+	var spell_damage := 0
+	var spell_shield := 0
+	for index in _matches.size():
+		var m: Dictionary = _matches[index]
+		var step: Dictionary = result.steps[index]
+		var spell: SpellData = m.spell
+		for tile in _tile_nodes:
+			tile.modulate = Color(0.65, 0.65, 0.7)
+			tile.scale = Vector2.ONE
+		for i: int in m.cover:
+			var tile := _tile_nodes[i]
+			tile.pivot_offset = tile.size / 2.0
+			var glow := create_tween().set_parallel()
+			glow.tween_property(tile, "scale", Vector2.ONE * 1.1, 0.12)
+			glow.tween_property(tile, "modulate", Color(1.5, 1.35, 1.0), 0.12)
+		spell_animation_started.emit(spell.id, m.cover)
+		_flash_spell(index, step)
+		await get_tree().create_timer(0.14).timeout
+		await _play_hand_cast()
+		var center := _tile_nodes[m.cover[0]].get_global_rect().get_center()
+		if step.affinity > 0:
+			await _effects.bolt(center, PLAYER_ANCHOR, Color("ffbd55"))
+			_fire_affinity += int(step.affinity)
+			_popup("亲和 +%d" % step.affinity, PLAYER_ANCHOR, UiKit.GOLD, 30)
+		if step.damage > 0:
+			var color := Color("ff684e") if spell.id == "bloodflame" else Color("ffa64b")
+			await _effects.bolt(PLAYER_ANCHOR, ENEMY_ANCHOR, color, spell.id == "fireball", spell.id == "wildfire")
+			var damage := int(step.damage)
+			var blocked := mini(enemy_block, damage)
+			enemy_block -= blocked
+			_enemy_hp = maxi(0, _enemy_hp - damage + blocked)
+			spell_damage += damage
+			_popup("-%d" % (damage - blocked) if damage > blocked else "格挡", ENEMY_ANCHOR, UiKit.RED.lightened(0.25), 42)
+			await _effects.hit(_enemy_visual)
+		if step.shield > 0:
+			spell_shield += int(step.shield)
+			_effects.shield(PLAYER_ANCHOR, Color("ffca78") if spell.id == "warmth" else Color("8ddfff"))
+			_popup("护盾 +%d" % step.shield, PLAYER_ANCHOR, UiKit.BLUE.lightened(0.5), 32)
+		_refresh_status()
+		await get_tree().create_timer(0.16).timeout
+		for i: int in m.cover:
+			_tile_nodes[i].scale = Vector2.ONE
+			_tile_nodes[i].modulate = Color(0.65, 0.65, 0.7)
+		await get_tree().create_timer(0.08).timeout
+	# Sentence/relic/affix bonuses are granted once, after individual spells.
+	var extra := maxi(0, int(result.damage) - spell_damage)
+	if extra > 0:
+		await _effects.bolt(PLAYER_ANCHOR, ENEMY_ANCHOR, UiKit.GOLD)
+		var dealt := maxi(0, extra - enemy_block)
+		_enemy_hp = maxi(0, _enemy_hp - dealt)
+		_popup("-%d" % dealt, ENEMY_ANCHOR, UiKit.GOLD, 34)
+		await _effects.hit(_enemy_visual)
+	if result.shield > spell_shield:
+		_effects.shield(PLAYER_ANCHOR)
+		_popup("护盾 +%d" % (result.shield - spell_shield), PLAYER_ANCHOR, UiKit.BLUE, 28)
+	for tile in _tile_nodes:
+		tile.scale = Vector2.ONE
+		tile.modulate = Color.WHITE
 
 
-func _flash_spell(index: int, at: Vector2) -> void:
+func _flash_spell(index: int, step: Dictionary) -> void:
 	var spell: SpellData = _matches[index].spell
-	var mult: int = _matches[index].mult
+	for row in _bracket_nodes:
+		for node: Control in row:
+			node.modulate = Color(0.55, 0.55, 0.6)
 	for node: Control in _bracket_nodes[index]:
-		var tween := node.create_tween()
-		tween.tween_property(node, "modulate", Color(1.8, 1.6, 1.2), 0.08)
-		tween.tween_property(node, "modulate", Color.WHITE, 0.3)
+		node.modulate = Color(1.5, 1.35, 1.0)
+		if node is Label:
+			var value := int(step.damage) if step.damage > 0 else int(step.shield)
+			if step.affinity > 0:
+				node.text = "%s · 亲和 +%d" % [spell.name.trim_suffix("术"), step.affinity]
+			else:
+				node.text = "%s · %d" % [spell.name.trim_suffix("术"), value]
 	for card in _cards:
-		if card.spell == spell:
-			card.pivot_offset = card.size / 2.0
-			var pulse := card.create_tween()
-			pulse.tween_property(card, "scale", Vector2(1.05, 1.05), 0.08)
-			pulse.tween_property(card, "scale", Vector2.ONE, 0.15)
-	_popup(spell.bracket_text(mult), at + Vector2(0, -60), (UiKit.RED if spell.is_attack() else UiKit.BLUE).lightened(0.35), 28)
+		card.set_highlight(card.spell == spell)
 
 
 ## 当前句子释放后的结果预估：伤害、护盾、治疗、实际打出的伤害和预计受伤。遗物加成也算在内。
-func _preview() -> Dictionary:
-	var result := SpellMatcher.totals(_matches)
+func _preview(roll_random: bool = false) -> Dictionary:
+	var result := SpellMatcher.totals(_matches, _fire_affinity, roll_random)
+	var base_damage: float = result.damage
+	result.damage += Game.combo_bonus(_matches)
+	if not _matches.is_empty() and _sentence.length() <= 4:
+		result.damage += Game.short_sentence_damage
 	if Game.has_relic("ember_ring"):
 		result.damage += _matches.filter(func(m: Dictionary) -> bool: return (m.spell as SpellData).is_attack()).size()
 	if Game.has_relic("crystal"):
@@ -518,10 +584,13 @@ func _preview() -> Dictionary:
 		result.shield += 3
 	result.shield += _placed_shield
 	_add_cover_affixes(result)
-	var enemy_block: int = _intent.get("block", 0)
-	result.dealt = maxi(0, result.damage - result.pierce - enemy_block) + result.pierce
+	var enemy_block: int = maxi(0, int(_intent.get("block", 0)) - _affinity_block_used)
+	var extra: float = result.damage - base_damage
+	result.dealt_min = maxi(0, int(result.damage_min + extra) - enemy_block)
+	result.dealt_max = maxi(0, int(result.damage_max + extra) - enemy_block)
+	result.dealt = maxf(0, result.damage - enemy_block)
 	result.taken = 0
-	if _intent.has("attack") and result.dealt < _enemy_hp:
+	if _intent.has("attack") and result.dealt_min < _enemy_hp:
 		result.taken = maxi(0, _intent.attack + _strength - result.shield)
 	return result
 
@@ -560,30 +629,38 @@ func _shared_rune_count() -> int:
 
 
 func _finish(won: bool) -> void:
+	if _phase == Phase.OVER:
+		return
 	_phase = Phase.OVER
+	for cloud in _clouds:
+		cloud.frozen = true
+	_cast_button.disabled = true
+	_reroll_button.disabled = true
+	if won:
+		if Game.in_boss_fight():
+			Game.end_run()
+		else:
+			Game.complete_battle()
+		await _effects.defeat(_enemy_visual)
 	if not won:
+		Game.end_run()
 		_show_result("败北…", "你倒在了地图第 %d 层。" % Game.floor_number(), "重新开始", func() -> void:
 			Game.new_run()
 			Game.go_to_map())
 	elif Game.in_boss_fight():
+		Game.end_run()
 		_show_result("通关！", "首领已被你的咒语击败。", "再来一局", func() -> void:
 			Game.new_run()
 			Game.go_to_map())
 	else:
-		var reward := Game.duel_reward()
-		Game.gold += reward
-		var detail := "获得 %d 金币。" % reward
-		if Game.in_elite_fight():
-			var relic := Game.random_relic()
-			if relic != null:
-				Game.gain_relic(relic)
-				detail = "获得 %d 金币和遗物「%s」。" % [reward, relic.name]
-		_show_result("胜利！", detail, "学习咒语", Game.go_to_learn)
+		_show_result("胜利！", Game.reward_detail, "选择成长奖励", Game.go_to_reward)
 
 
 # ---------------------------------------------------------------- 刷新显示
 
 func _refresh_status() -> void:
+	if _effects != null:
+		_effects.set_affinity(_fire_affinity, Vector2(210,150))
 	_player_hp_bar.ratio = float(Game.hp) / Game.max_hp
 	_player_hp_label.text = "%d / %d" % [Game.hp, Game.max_hp]
 	_enemy_hp_bar.ratio = float(_enemy_hp) / _enemy.hp
@@ -651,6 +728,8 @@ func _intent_descriptions() -> PackedStringArray:
 func _refresh_statuses() -> void:
 	UiKit.clear_children(_status_layer)
 	var player: Array = []
+	if _fire_affinity > 0:
+		player.append(["icon_fire", "火焰亲和 %d" % _fire_affinity, "每放入一个 a 符文造成 %d 点伤害，持续本场战斗" % _fire_affinity])
 	if _burn > 0:
 		player.append(["icon_fire", "灼烧 %d" % _burn, "每回合结束受 %d 点伤害，然后减 1 层" % _burn])
 	if _haste > 0.0:
@@ -692,7 +771,10 @@ func _refresh_sentence() -> void:
 	_rebuild_brackets()
 
 	var result := _preview()
-	var stats := "伤害 [color=#ff8a70]%02d[/color]  护盾 [color=#8fd0f5]%02d[/color]" % [result.dealt, result.shield]
+	var damage_text := str(result.dealt_min) if result.dealt_min == result.dealt_max else "%d–%d" % [result.dealt_min, result.dealt_max]
+	var stats := "伤害 [color=#ff8a70]%s[/color]  护盾 [color=#8fd0f5]%02d[/color]" % [damage_text, result.shield]
+	if result.self_damage > 0:
+		stats += "  生命 -%d" % result.self_damage
 	if result.heal > 0:
 		stats += "  治疗 [color=#9be39d]%02d[/color]" % result.heal
 	if result.gold > 0:
@@ -842,7 +924,7 @@ func _emerge_cloud() -> void:
 	var cards := _draw_cards(1)
 	if cards.is_empty():
 		return
-	var cloud := FragmentCloud.create(cards[0], Game.cloud_life * randf_range(0.9, 1.15))
+	var cloud := FragmentCloud.create(cards[0], Game.cloud_life)
 	var spot := _free_spot(cloud.size)
 	if spot.x < 0.0:
 		_draw_pile.append(cards[0])
@@ -933,7 +1015,11 @@ func _build_stage() -> void:
 	_stage = _full_texture(STAGE_BACKGROUND)
 	add_child(UiKit.place(_stage, STAGE_RECT))
 
-	# 有立绘就站在法阵上，没有就放一块名牌占位。
+	_enemy_visual = Control.new()
+	_enemy_visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_enemy_visual.position = ENEMY_ANCHOR
+	_stage.add_child(_enemy_visual)
+	# Missing art gets a visible stand-in with the same animation hooks.
 	var enemy_art: String = ENEMY_ART % _enemy.id
 	if ResourceLoader.exists(enemy_art):
 		var enemy_sprite := TextureRect.new()
@@ -941,7 +1027,11 @@ func _build_stage() -> void:
 		enemy_sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		enemy_sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		enemy_sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_stage.add_child(UiKit.place(enemy_sprite, Rect2(ENEMY_ANCHOR.x - 210, 10, 420, 340)))
+		_enemy_visual.add_child(UiKit.place(enemy_sprite, Rect2(-210, -160, 420, 340)))
+	else:
+		var silhouette := BattleEffects.Silhouette.new()
+		silhouette.tint = Color("65578c") if _enemy.id == "graveyard_wizard" else Color("76514d")
+		_enemy_visual.add_child(silhouette)
 	var nameplate := UiKit.centered(UiKit.label(_enemy.name, 34, UiKit.CREAM))
 	UiKit.outlined(nameplate, 8)
 	var plate_style := UiKit.ink_box(Color(UiKit.NIGHT, 0.7), 16)
@@ -949,7 +1039,7 @@ func _build_stage() -> void:
 	plate_style.set_border_width_all(3)
 	nameplate.add_theme_stylebox_override("normal", plate_style)
 	nameplate.visible = not ResourceLoader.exists(enemy_art)
-	_stage.add_child(UiKit.place(nameplate, Rect2(ENEMY_ANCHOR - Vector2(130, 30), Vector2(260, 64))))
+	_enemy_visual.add_child(UiKit.place(nameplate, Rect2(-130, 130, 260, 48)))
 
 	_hand = _full_texture(HANDS_ART)
 	_hand.pivot_offset = HAND_RECT.size * Vector2(0.3, 1.0)
@@ -1058,11 +1148,12 @@ func _build_mind_area() -> void:
 	add_child(UiKit.place(UiKit.sprite("panel_memory"), Rect2(24, 824, 412, 97)))
 	var memory_title := Control.new()
 	memory_title.mouse_filter = Control.MOUSE_FILTER_STOP
-	memory_title.tooltip_text = "记忆：右键词云存入记忆；点击记忆中的词云放进句子。\n存着的词云跨回合保留。"
+	memory_title.tooltip_text = "记忆：右键词云保存，左键点击记忆中的词云使用。\n只有 1 个位置，必须使用后才能保存其他词云；可跨回合保留。"
 	add_child(UiKit.place(memory_title, Rect2(24, 824, 66, 97)))
 	_memory_layer = Control.new()
 	_memory_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_memory_layer)
+	add_child(UiKit.place(UiKit.label("右键保存 · 左键使用\n仅 1 格，用后可再存", 19), Rect2(186, 846, 240, 58)))
 
 	_reroll_button = UiKit.button("换一批（免费）" if Game.has_relic("glove") else "换一批（-%d 秒）" % REROLL_TIME_COST, 20)
 	_reroll_button.pressed.connect(_reroll)
@@ -1136,6 +1227,7 @@ func _shake(node: Control) -> void:
 
 func _show_result(title: String, detail: String, action: String, on_confirm: Callable) -> void:
 	var dim := ColorRect.new()
+	dim.z_index = 20
 	dim.color = Color(0, 0, 0, 0.6)
 	add_child(UiKit.place(dim, Rect2(0, 0, 1672, 941)))
 	dim.add_child(UiKit.place(UiKit.nine("panel_parchment_large", 46), Rect2(486, 290, 700, 360)))
@@ -1145,3 +1237,20 @@ func _show_result(title: String, detail: String, action: String, on_confirm: Cal
 	var confirm := UiKit.button(action, 32)
 	confirm.pressed.connect(on_confirm)
 	dim.add_child(UiKit.place(confirm, Rect2(716, 520, 240, 76)))
+
+
+## Only newly placed runes trigger affinity. Reordering and spell matches do not.
+func _apply_fire_affinity(runes: String) -> void:
+	var damage := runes.count("a") * _fire_affinity
+	if damage <= 0:
+		return
+	var blocked := mini(damage, maxi(0, int(_intent.get("block", 0)) - _affinity_block_used))
+	_affinity_block_used += blocked
+	var dealt := damage - blocked
+	_enemy_hp = maxi(0, _enemy_hp - dealt)
+	var source := _tile_rect(maxi(0, _sentence.length() - 1)).get_center()
+	_effects.bolt(source, ENEMY_ANCHOR, Color("ffbd55"))
+	_popup("火焰亲和 -%d" % dealt, ENEMY_ANCHOR, UiKit.RED.lightened(0.25), 32)
+	_refresh_status()
+	if _enemy_hp <= 0:
+		_finish(true)

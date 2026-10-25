@@ -7,6 +7,17 @@ const SPELL_SHOP_SCENE := "res://scenes/spell_shop.tscn"
 const REST_SCENE := "res://scenes/rest.tscn"
 const SCRIPTORIUM_SCENE := "res://scenes/scriptorium.tscn"
 const LEARN_SCENE := "res://scenes/learn.tscn"
+const REWARD_SCENE := "res://scenes/reward.tscn"
+const CLOUD_LIFE_CAP := 12.0
+const SAVE_FIELDS := ["max_hp", "hp", "gold", "enemy", "spell_slots", "max_length", "build_time", "max_clouds", "cloud_life", "combo_damage", "short_sentence_damage", "pending_rewards", "settled_battles", "reward_detail", "resume_scene"]
+var save_path := "user://run.save"
+var short_sentence_damage := 0
+var combo_damage := 0
+var pending_rewards: Array = []
+var settled_battles: Array = []
+var reward_detail := ""
+var resume_scene := MAP_SCENE
+var save_error := ""
 
 const MAX_LENGTH_CAP := 9
 const SPELL_SLOT_CAP := 5
@@ -68,7 +79,12 @@ func _ready() -> void:
 	theme.default_font = UiKit.text_font()
 	theme.default_font_size = 24
 	get_tree().root.theme = theme
-	new_run()
+	# Tests use an isolated save and never read or overwrite the player save.
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--save-path="):
+			save_path = arg.trim_prefix("--save-path=")
+	if not load_run():
+		new_run()
 
 
 func new_run(character_id: String = "evoker") -> void:
@@ -82,11 +98,18 @@ func new_run(character_id: String = "evoker") -> void:
 	spells.assign(character.spell_ids.map(func(spell_id: String) -> SpellData: return SpellData.by_id(spell_id)))
 	deck = character.build_deck()
 	spell_slots = 4
-	max_length = 7
+	max_length = 5
 	build_time = 20.0
 	max_clouds = 4
 	cloud_life = 6.0
 	relics = []
+	short_sentence_damage = 0
+	combo_damage = 0
+	pending_rewards = []
+	settled_battles = []
+	reward_detail = ""
+	resume_scene = MAP_SCENE
+	save_run()
 
 
 func current_enemy() -> Dictionary:
@@ -135,12 +158,19 @@ func heal(amount: int) -> void:
 
 
 func go_to_map() -> void:
-	get_tree().change_scene_to_file(MAP_SCENE)
+	if not pending_rewards.is_empty():
+		go_to_reward()
+		return
+	resume_scene = MAP_SCENE
+	if save_run():
+		get_tree().change_scene_to_file(MAP_SCENE)
 
 
 ## 走到地图上的一个节点：战斗类节点先定好敌人再进战斗，商店、休息处、抄写室切到各自页面。
 ## 宝箱不切场景，由地图页面当场开箱。
 func enter_node(node: MapData.MapNode) -> void:
+	if not pending_rewards.is_empty() or node not in map.reachable_from(map_node):
+		return
 	map_node = node
 	node.visited = true
 	match node.type:
@@ -171,10 +201,250 @@ func _elite(base: Dictionary) -> Dictionary:
 	return elite
 
 
-## 每打赢一场普通或精英战斗，先到学习咒语页面，再回地图。
+## 兼容旧调用方：战后统一进入成长奖励。
 func go_to_learn() -> void:
-	get_tree().change_scene_to_file(LEARN_SCENE)
+	go_to_reward()
 
 
 func go_to_battle() -> void:
-	get_tree().change_scene_to_file(BATTLE_SCENE)
+	resume_scene = BATTLE_SCENE
+	if save_run():
+		get_tree().change_scene_to_file(BATTLE_SCENE)
+
+
+func go_to_reward() -> void:
+	get_tree().change_scene_to_file(REWARD_SCENE)
+
+
+func combo_bonus(matches: Array[Dictionary]) -> int:
+	var ids := {}
+	for m in matches:
+		ids[m.spell.id] = true
+	return combo_damage if ids.size() >= 2 else 0
+
+
+# Search actual deck fragments, not arbitrary unlocked letters. Bounded search
+# conservatively omits rewards whose applicability could not be demonstrated.
+func reward_examples() -> Dictionary:
+	var examples := {}
+	var queue: Array[String] = [""]
+	var seen := {"": true}
+	var fragments := {}
+	for card in deck:
+		if not card.is_junk():
+			fragments[card.runes] = true
+	var cursor := 0
+	while cursor < queue.size() and cursor < 20000:
+		var sentence := queue[cursor]
+		cursor += 1
+		var matches := SpellMatcher.find_matches(sentence, spells)
+		var ids := {}
+		for m in matches:
+			ids[m.spell.id] = true
+			if not examples.has(m.spell.id):
+				examples[m.spell.id] = sentence
+		if ids.size() >= 2 and not examples.has("combo"):
+			examples.combo = sentence
+		if examples.size() >= spells.size() + 1:
+			break
+		for fragment: String in fragments:
+			var next := sentence + fragment
+			if next.length() <= max_length and not seen.has(next) and queue.size() < 20000:
+				seen[next] = true
+				queue.append(next)
+	return examples
+
+
+func make_rewards() -> Array:
+	var examples := reward_examples()
+	var stats: Array = []
+	for spell in spells:
+		if not examples.is_empty() and not examples.has(spell.id):
+			continue
+		for key: String in ["damage", "shield", "heal", "gold", "fire_affinity", "shield_per_affinity"]:
+			if spell.get(key) > 0:
+				var label: String = {"damage": "伤害", "shield": "护盾", "heal": "治疗", "gold": "金币", "fire_affinity": "火焰亲和", "shield_per_affinity": "亲和护盾倍率"}[key]
+				var amount := 1 if key in ["gold", "fire_affinity", "shield_per_affinity"] else 3
+				stats.append({"kind": "stat", "spell": spell.id, "effect": key,
+					"amount": amount, "title": "法术强化 · " + spell.name,
+					"text": "%s：%s %d → %d\n咒式不变：%s\n可用例句：%s" % [spell.name, label, spell.get(key), spell.get(key) + amount, spell.pattern_text(), examples.get(spell.id, "需调整符文供应或句子容量")]})
+	stats.shuffle()
+	var offers: Array = []
+	if not stats.is_empty():
+		offers.append(stats.pop_back())
+	if max_length < MAX_LENGTH_CAP:
+		offers.append({"kind": "capacity", "title": "构句成长 · 句子扩展", "text": "句子容量 %d → %d 格\n已有法术的咒式不变\n构句总时间不变" % [max_length, max_length + 1]})
+	else:
+		offers.append({"kind": "short_sentence", "title": "构句成长 · 短句专注", "text": "句长不超过 4 格且触发法术时\n额外伤害 %d → %d，每句一次" % [short_sentence_damage, short_sentence_damage + 3]})
+	if hp < max_hp:
+		offers.append({"kind": "heal", "title": "休整 · 恢复生命", "text": "立即恢复 %d 点生命\n生命 %d → %d / %d" % [mini(8, max_hp - hp), hp, mini(max_hp, hp + 8), max_hp]})
+	elif cloud_life < CLOUD_LIFE_CAP:
+		offers.append({"kind": "mind", "title": "脑海操控", "text": "词云存续 %.0f → %.0f 秒\n施法总时间不变（%.0f 秒）\n存续上限 %.0f 秒" % [cloud_life, minf(CLOUD_LIFE_CAP, cloud_life + 2), build_time, CLOUD_LIFE_CAP]})
+	else:
+		offers.append({"kind": "gold", "title": "补给 · 金币", "text": "立即获得 10 金币"})
+	return offers
+
+
+# Loot and offers form a single saved checkpoint, keyed by the map encounter.
+func complete_battle() -> bool:
+	if map_node == null or map_node.type not in [MapData.BATTLE, MapData.ELITE] or hp <= 0:
+		return false
+	var key := "%d:%d" % [map_node.layer, map_node.row]
+	if key in settled_battles:
+		return false
+	var before := snapshot()
+	gold += duel_reward()
+	reward_detail = "获得 %d 金币。" % duel_reward()
+	if in_elite_fight():
+		var relic := random_relic()
+		if relic != null:
+			gain_relic(relic)
+			reward_detail += "获得遗物「%s」。" % relic.name
+	pending_rewards = make_rewards()
+	settled_battles.append(key)
+	resume_scene = REWARD_SCENE
+	if not save_run():
+		restore_snapshot(before)
+		return false
+	return true
+
+
+# UI and bots must both use this interface. A failed save rolls back the grant.
+func claim_reward(index: int) -> bool:
+	if index < 0 or index >= pending_rewards.size():
+		return false
+	var before := snapshot()
+	var offer: Dictionary = pending_rewards[index]
+	match offer.kind:
+		"stat":
+			var target: SpellData = null
+			for spell in spells:
+				if spell.id == offer.spell:
+					target = spell
+			if target == null:
+				return false
+			target.set(offer.effect, target.get(offer.effect) + int(offer.get("amount", 3)))
+		"capacity":
+			max_length = mini(MAX_LENGTH_CAP, max_length + 1)
+		"short_sentence":
+			short_sentence_damage += 3
+		"heal":
+			heal(8)
+		"gold":
+			gold += 10
+		"combo":
+			combo_damage += 4
+		"mind":
+			cloud_life = minf(CLOUD_LIFE_CAP, cloud_life + 2)
+		_:
+			return false
+	pending_rewards = []
+	resume_scene = MAP_SCENE
+	if not save_run():
+		restore_snapshot(before)
+		return false
+	return true
+
+
+func snapshot() -> Dictionary:
+	var data := {"version": 1, "spell_ruleset": 2, "character": character.id, "relics": relics.duplicate(), "spells": [], "deck": [], "layers": [], "node": []}
+	for key in SAVE_FIELDS:
+		data[key] = get(key)
+	for spell in spells:
+		data.spells.append({"id": spell.id, "name": spell.name, "pattern": spell.pattern, "rule": spell.rule, "fire_affinity": spell.fire_affinity, "damage_per_affinity": spell.damage_per_affinity, "shield_per_affinity": spell.shield_per_affinity, "self_damage": spell.self_damage, "random_bonus": spell.random_bonus, "damage": spell.damage, "shield": spell.shield, "heal": spell.heal, "gold": spell.gold, "pierce": spell.pierce, "icon": spell.icon, "cost": spell.cost})
+	for card in deck:
+		data.deck.append([card.runes, card.affix_id])
+	for layer: Array in map.layers:
+		var entries := []
+		for node: MapData.MapNode in layer:
+			entries.append({"layer": node.layer, "row": node.row, "type": node.type, "y": node.y, "next": node.next.duplicate(), "visited": node.visited})
+		data.layers.append(entries)
+	if map_node != null:
+		data.node = [map_node.layer, map_node.row]
+	return data.duplicate(true)
+
+
+func restore_snapshot(data: Dictionary) -> void:
+	data = data.duplicate(true)
+	data["short_sentence_damage"] = data.get("short_sentence_damage", 0)
+	character = CharacterData.by_id(data.character)
+	for key in SAVE_FIELDS:
+		set(key, data[key])
+	relics.assign(data.relics)
+	spells.clear()
+	if data.get("spell_ruleset", 0) == 2:
+		for entry: Dictionary in data.spells:
+			if SpellData.by_id(entry.id) != null:
+				spells.append(SpellData.new(entry.id, entry.name, entry.pattern, entry, entry.icon, entry.cost, entry.rule))
+	else:
+		spells.assign(character.spell_ids.map(func(id: String) -> SpellData: return SpellData.by_id(id)))
+	deck.clear()
+	for entry: Array in data.deck:
+		deck.append(CloudCard.new(entry[0], entry[1]))
+	map = MapData.new()
+	for layer: Array in data.layers:
+		var nodes := []
+		for entry: Dictionary in layer:
+			var node := MapData.MapNode.new(entry.layer, entry.row)
+			node.type = entry.type
+			node.y = entry.y
+			node.next.assign(entry.next)
+			node.visited = entry.visited
+			nodes.append(node)
+		map.layers.append(nodes)
+	map_node = null if data.node.is_empty() else map.node_at(data.node[0], data.node[1])
+	if data.get("spell_ruleset", 0) != 2:
+		# Retired spell effects never survive through a saved inventory or offer.
+		if not deck.any(func(card: CloudCard) -> bool: return "d" in card.runes):
+			deck.append(CloudCard.new("d"))
+			deck.append(CloudCard.new("d"))
+		if not pending_rewards.is_empty():
+			pending_rewards = make_rewards()
+
+
+
+func save_run() -> bool:
+	var file := FileAccess.open(save_path + ".tmp", FileAccess.WRITE)
+	if file == null:
+		save_error = "无法保存进度，请检查存档目录权限后重试。"
+		return false
+	file.store_var(snapshot())
+	file.flush()
+	var error := file.get_error()
+	file.close()
+	if error != OK or DirAccess.rename_absolute(save_path + ".tmp", save_path) != OK:
+		save_error = "保存失败，请重试；奖励尚未确认。"
+		return false
+	save_error = ""
+	return true
+
+
+func load_run() -> bool:
+	if not FileAccess.file_exists(save_path):
+		return false
+	var file := FileAccess.open(save_path, FileAccess.READ)
+	if file == null:
+		return false
+	var data = file.get_var(false)
+	if not data is Dictionary or data.get("version") != 1:
+		return false
+	data["short_sentence_damage"] = data.get("short_sentence_damage", 0)
+	for key in SAVE_FIELDS + ["character", "relics", "spells", "deck", "layers", "node"]:
+		if not data.has(key):
+			return false
+	if data.get("spell_ruleset", 0) != 2:
+		var backup := save_path + ".legacy"
+		if not FileAccess.file_exists(backup):
+			if DirAccess.copy_absolute(save_path, backup) != OK:
+				save_error = "旧存档备份失败，尚未转换。"
+				return false
+	restore_snapshot(data)
+	if data.get("spell_ruleset", 0) != 2:
+		save_run()
+	return true
+
+
+func end_run() -> void:
+	pending_rewards = []
+	resume_scene = MAP_SCENE
+	DirAccess.remove_absolute(save_path)

@@ -105,7 +105,7 @@ func _build_owned_spells(rect: Rect2, selected: SpellData, on_select: Callable, 
 func _build_rune_adder(spell: SpellData, column: Rect2, top: float, cost: int, on_added: Callable, enabled: bool = true) -> void:
 	# 选哪个符文效果都一样，所以效果只写一次。
 	var added := spell.copy()
-	added.add_rune(SpellData.RUNES.filter(func(rune: String) -> bool: return rune not in spell.pattern).front() if spell.rule == SpellData.ABSENT else "a")
+	added.add_rune("a")
 	var price := "免费" if cost == 0 else "%d 金币" % cost
 	add_child(UiKit.place(UiKit.label("追加符文（%s）：%s" % [price, added.change_text(spell)], 21), Rect2(column.position.x + 30, top, column.size.x - 52, 30)))
 	var can_add := enabled and spell.can_add_rune(Game.max_length) and Game.gold >= cost
@@ -126,7 +126,7 @@ func _build_rune_adder(spell: SpellData, column: Rect2, top: float, cost: int, o
 		add.add_theme_font_override("font", UiKit.rune_font())
 		add.add_theme_color_override("font_color", UiKit.rune_color(rune).darkened(0.2))
 		add.add_theme_color_override("font_hover_color", UiKit.rune_color(rune).darkened(0.2))
-		add.disabled = not can_add or (spell.rule == SpellData.ABSENT and rune in spell.pattern)
+		add.disabled = not can_add
 		add.pressed.connect(add_rune.bind(rune))
 		add_child(UiKit.place(add, Rect2(column.position.x + 34 + 94 * i, top + 42, 84, 56)))
 	if not spell.can_add_rune(Game.max_length):

@@ -51,6 +51,9 @@ class Routes:
 
 
 func _ready() -> void:
+	if Game.resume_scene != Game.MAP_SCENE:
+		get_tree().change_scene_to_file.call_deferred(Game.resume_scene)
+		return
 	_rebuild()
 
 
@@ -291,6 +294,7 @@ func _open_treasure() -> void:
 	else:
 		Game.gold += TREASURE_GOLD
 		detail = "箱子里只剩金币：获得 %d 金币" % TREASURE_GOLD
+	Game.save_run()
 	_rebuild()
 
 	var dim := ColorRect.new()

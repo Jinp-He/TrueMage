@@ -1,0 +1,94 @@
+{
+  "generator": "built-in image_gen",
+  "style": "Rubber hose cartoon game asset, 1930s theatrical cartoon influence, thick slightly hand-inked near-black outlines, simple bold silhouette, springy curved shapes, flat limited colors with restrained cel shadows, cream highlights, playful spooky rather than realistic. Readable at small size, matches an illustrated parchment-and-night-sky fantasy game. No words, no letters, no rune glyphs, no labels, no frame, no watermark. Genuine transparent background, clean alpha edges, no checkerboard or backdrop drawn into image.",
+  "assets": [
+    {
+      "id": "graveyard_wizard",
+      "kind": "enemy",
+      "file": "art/characters/enemies/graveyard_wizard.png",
+      "prompt": "Rubber hose cartoon game asset, 1930s theatrical cartoon influence, thick slightly hand-inked near-black outlines, simple bold silhouette, springy curved shapes, flat limited colors with restrained cel shadows, cream highlights, playful spooky rather than realistic. Readable at small size, matches an illustrated parchment-and-night-sky fantasy game. No words, no letters, no rune glyphs, no labels, no frame, no watermark. Genuine transparent background, clean alpha edges, no checkerboard or backdrop drawn into image. Standalone full body enemy sprite, front-facing three-quarter stance turned slightly toward the left to face a player. Entire hat, hands, staff and feet visible with safe margin, centered, occupies most of canvas, feet aligned near bottom. White rubber hose gloves, expressive eyes, flexible limbs, bold chunky shapes. Not a sheet, not multiple poses. Create a NEW distinct character: Graveyard Wizard, a sly elderly graveyard magician in a crooked tall teal-black wizard hat, desaturated teal robe with muted ochre trim, ivory face with mischievous pie-cut eyes, large bushy eyebrows and a crooked toothy grin. One oversized white gloved hand conjures three small pale-mint ghost wisps, the other holds a crooked wooden shovel-shaped staff with a tiny tombstone ornament. Slight hunch, oversized shoes, funny sinister silhouette. Use the supplied purple wizard as STYLE REFERENCE ONLY; do not copy his exact pose or purple costume. Deliver only one finished transparent cutout sprite.",
+      "revision_prompt": null,
+      "style_reference": "art/characters/enemies/skeleton_apprentice.png"
+    },
+    {
+      "id": "bound_monk",
+      "kind": "enemy",
+      "file": "art/characters/enemies/bound_monk.png",
+      "prompt": "Rubber hose cartoon game asset, 1930s theatrical cartoon influence, thick slightly hand-inked near-black outlines, simple bold silhouette, springy curved shapes, flat limited colors with restrained cel shadows, cream highlights, playful spooky rather than realistic. Readable at small size, matches an illustrated parchment-and-night-sky fantasy game. No words, no letters, no rune glyphs, no labels, no frame, no watermark. Genuine transparent background, clean alpha edges, no checkerboard or backdrop drawn into image. Standalone full body enemy sprite, front-facing three-quarter stance turned slightly toward the left to face a player. Entire hat, hands, staff and feet visible with safe margin, centered, occupies most of canvas, feet aligned near bottom. White rubber hose gloves, expressive eyes, flexible limbs, bold chunky shapes. Not a sheet, not multiple poses. NEW CHARACTER: Curse-bound monk enemy: squat hunched ivory skull-like face, heavy dark rust-red cowl and tattered monk robe, an oversized loop of ochre prayer beads, white rubber-hose gloved hands held apart with a sagging chain and two floating blank parchment seals without any writing, worried yet threatening pie-cut eyes, bent rubber limbs and oversized shoes. Distinct from a wizard, no pointed wizard hat. Simple readable silhouette. Supplied image is style reference only; create one new full body sprite. No background, no ground plane.",
+      "revision_prompt": null,
+      "style_reference": "art/characters/enemies/graveyard_wizard.png"
+    },
+    {
+      "id": "darkmoon_priest",
+      "kind": "enemy",
+      "file": "art/characters/enemies/darkmoon_priest.png",
+      "prompt": "Rubber hose cartoon game asset, 1930s theatrical cartoon influence, thick slightly hand-inked near-black outlines, simple bold silhouette, springy curved shapes, flat limited colors with restrained cel shadows, cream highlights, playful spooky rather than realistic. Readable at small size, matches an illustrated parchment-and-night-sky fantasy game. No words, no letters, no rune glyphs, no labels, no frame, no watermark. Genuine transparent background, clean alpha edges, no checkerboard or backdrop drawn into image. Standalone full body enemy sprite, front-facing three-quarter stance turned slightly toward the left to face a player. Entire hat, hands, staff and feet visible with safe margin, centered, occupies most of canvas, feet aligned near bottom. White rubber hose gloves, expressive eyes, flexible limbs, bold chunky shapes. Not a sheet, not multiple poses. NEW CHARACTER: Darkmoon priest enemy: tall lanky theatrical priest, deep midnight-blue robe with dull lavender lining, crescent moon headdress, one ivory-white face with sly pie-cut eyes and a long grin, white gloved hands holding a compact crescent-topped ceremonial staff and a small purple flame. Elegant bent rubber-hose arms, oversized shoes. No text or symbols resembling writing. Supplied image is style reference only; create one new full body sprite. No background, no ground plane.",
+      "revision_prompt": null,
+      "style_reference": "art/characters/enemies/graveyard_wizard.png"
+    },
+    {
+      "id": "bone_archmage",
+      "kind": "enemy",
+      "file": "art/characters/enemies/bone_archmage.png",
+      "prompt": "Rubber hose cartoon game asset, 1930s theatrical cartoon influence, thick slightly hand-inked near-black outlines, simple bold silhouette, springy curved shapes, flat limited colors with restrained cel shadows, cream highlights, playful spooky rather than realistic. Readable at small size, matches an illustrated parchment-and-night-sky fantasy game. No words, no letters, no rune glyphs, no labels, no frame, no watermark. Genuine transparent background, clean alpha edges, no checkerboard or backdrop drawn into image. Standalone full body enemy sprite, front-facing three-quarter stance turned slightly toward the left to face a player. Entire hat, hands, staff and feet visible with safe margin, centered, occupies most of canvas, feet aligned near bottom. White rubber hose gloves, expressive eyes, flexible limbs, bold chunky shapes. Not a sheet, not multiple poses. NEW CHARACTER: Bone archmage boss: imposing broad-shouldered cartoon skeleton archwizard, huge ivory skull with expressive pie-cut eye sockets and a cocky grin, tall broken bone crown, black-plum and antique gold robes, exaggerated curled shoulders, one white gloved hand raised to cast and other gripping a large bone staff with a simple skull topper. Two big curved shoes, commanding theatrical stance. Clear boss silhouette, no gore. Supplied image is style reference only; create one new full body sprite. No background, no ground plane.",
+      "revision_prompt": null,
+      "style_reference": "art/characters/enemies/graveyard_wizard.png"
+    },
+    {
+      "id": "kindle",
+      "kind": "spell_icon",
+      "file": "art/icons/spells/kindle.png",
+      "prompt": "Rubber hose cartoon game asset, 1930s theatrical cartoon influence, thick slightly hand-inked near-black outlines, simple bold silhouette, springy curved shapes, flat limited colors with restrained cel shadows, cream highlights, playful spooky rather than realistic. Readable at small size, matches an illustrated parchment-and-night-sky fantasy game. No words, no letters, no rune glyphs, no labels, no frame, no watermark. Genuine transparent background, clean alpha edges, no checkerboard or backdrop drawn into image. Square standalone spell inventory icon. Extremely simple graphic, ONE main subject, centered and fills about 78 percent of square canvas with ample clear padding. Bold 1930s rubber-hose cartoon emblem, 3 to 5 flat color areas, thick clean black contour; do not add fine costume detail, miniature scenery, lettering, badge, card, border, or shadow plane. Must stay recognizable at 56x56 pixels. SUBJECT: Ignition / fire affinity: ONE large white rubber-hose cartoon gloved hand cupping a small bright amber flame, a single curling orange loop wraps protectively around the flame. Friendly impish flame eyes optional but hand and flame are primary. Silhouette is upright open palm, not a projectile. Colors ivory, warm orange, muted gold. Reference image shows the desired cartoon ink language only. Generate a NEW distinct icon, isolated alpha cutout.",
+      "revision_prompt": null,
+      "style_reference": "art/ui/pieces/icon_fire.png"
+    },
+    {
+      "id": "fire_arrow",
+      "kind": "spell_icon",
+      "file": "art/icons/spells/fire_arrow.png",
+      "prompt": "Rubber hose cartoon game asset, 1930s theatrical cartoon influence, thick slightly hand-inked near-black outlines, simple bold silhouette, springy curved shapes, flat limited colors with restrained cel shadows, cream highlights, playful spooky rather than realistic. Readable at small size, matches an illustrated parchment-and-night-sky fantasy game. No words, no letters, no rune glyphs, no labels, no frame, no watermark. Genuine transparent background, clean alpha edges, no checkerboard or backdrop drawn into image. Square standalone spell inventory icon. Extremely simple graphic, ONE main subject, centered and fills about 78 percent of square canvas with ample clear padding. Bold 1930s rubber-hose cartoon emblem, 3 to 5 flat color areas, thick clean black contour; do not add fine costume detail, miniature scenery, lettering, badge, card, border, or shadow plane. Must stay recognizable at 56x56 pixels. SUBJECT: Fire arrow: ONE bold horizontal flaming arrow pointing upper-right, crisp triangular ivory-yellow arrowhead, orange flame fins and short red-orange tapered trail. A single small mischievous pie-cut eye integrated near the arrowhead. Clear narrow directional silhouette, not a round fireball, no hand. Reference image shows the desired cartoon ink language only. Generate a NEW distinct icon, isolated alpha cutout.",
+      "revision_prompt": null,
+      "style_reference": "art/ui/pieces/icon_fire.png"
+    },
+    {
+      "id": "fireball",
+      "kind": "spell_icon",
+      "file": "art/icons/spells/fireball.png",
+      "prompt": "Rubber hose cartoon game asset, 1930s theatrical cartoon influence, thick slightly hand-inked near-black outlines, simple bold silhouette, springy curved shapes, flat limited colors with restrained cel shadows, cream highlights, playful spooky rather than realistic. Readable at small size, matches an illustrated parchment-and-night-sky fantasy game. No words, no letters, no rune glyphs, no labels, no frame, no watermark. Genuine transparent background, clean alpha edges, no checkerboard or backdrop drawn into image. Square standalone spell inventory icon. Extremely simple graphic, ONE main subject, centered and fills about 78 percent of square canvas with ample clear padding. Bold 1930s rubber-hose cartoon emblem, 3 to 5 flat color areas, thick clean black contour; do not add fine costume detail, miniature scenery, lettering, badge, card, border, or shadow plane. Must stay recognizable at 56x56 pixels. SUBJECT: Fireball: ONE chunky spherical orange-red flame character flying upper-right with a short broad curling flame tail, wide energetic pie-cut eyes and a toothy grin, yellow hot inner core. Round heavy silhouette, not an arrow, no hands or body. Reference image shows the desired cartoon ink language only. Generate a NEW distinct icon, isolated alpha cutout.",
+      "revision_prompt": null,
+      "style_reference": "art/ui/pieces/icon_fire.png"
+    },
+    {
+      "id": "shield",
+      "kind": "spell_icon",
+      "file": "art/icons/spells/shield.png",
+      "prompt": "Rubber hose cartoon game asset, 1930s theatrical cartoon influence, thick slightly hand-inked near-black outlines, simple bold silhouette, springy curved shapes, flat limited colors with restrained cel shadows, cream highlights, playful spooky rather than realistic. Readable at small size, matches an illustrated parchment-and-night-sky fantasy game. No words, no letters, no rune glyphs, no labels, no frame, no watermark. Genuine transparent background, clean alpha edges, no checkerboard or backdrop drawn into image. Square standalone spell inventory icon. Extremely simple graphic, ONE main subject, centered and fills about 78 percent of square canvas with ample clear padding. Bold 1930s rubber-hose cartoon emblem, 3 to 5 flat color areas, thick clean black contour; do not add fine costume detail, miniature scenery, lettering, badge, card, border, or shadow plane. Must stay recognizable at 56x56 pixels. SUBJECT: Shield spell: ONE stout rounded blue shield with ivory rim and near-black outline, two determined pie-cut eyes and a confident tiny curved smile on its face, a small glint on one edge. Blue and pale cyan, broad symmetric shield silhouette, no fire, no hands. Reference image shows the desired cartoon ink language only. Generate a NEW distinct icon, isolated alpha cutout.",
+      "revision_prompt": null,
+      "style_reference": "art/ui/pieces/icon_fire.png"
+    },
+    {
+      "id": "bloodflame",
+      "kind": "spell_icon",
+      "file": "art/icons/spells/bloodflame.png",
+      "prompt": "undefined SUBJECT: Bloodflame spell: ONE deep crimson flame shaped like a heavy teardrop, embracing a tiny ivory heart-shaped ember at its core, fierce pie-cut eyes, a few sharp red flame tips. Strong red/burgundy silhouette, sinister playful expression, self-sacrifice magic, NO realistic blood, no gore, no anatomical heart, no hand. Reference image shows cartoon ink language only. Generate a NEW single icon on actual transparency.",
+      "revision_prompt": "EDIT TARGET Image 1. STYLE REFERENCE Image 2. Redraw target as a simple 1930s rubber-hose cartoon spell icon matching reference's bold black outlines and flat cel colors. Remove all painterly texture, gradients, glows and soft airbrush shading. Preserve a crimson teardrop flame surrounding a tiny cream heart. Replace angry sharp realistic eyes with two large expressive black pie-cut oval eyes and a mischievous curved cartoon mouth. Use ONLY near-black, crimson, red-orange and pale cream flat areas. Keep one centered icon, no text, no frame, genuine transparent background, clean alpha. Do not add objects, keep readable at 56px.",
+      "style_reference": "art/ui/pieces/icon_fire.png"
+    },
+    {
+      "id": "warmth",
+      "kind": "spell_icon",
+      "file": "art/icons/spells/warmth.png",
+      "prompt": "undefined SUBJECT: Residual warmth / protective fire spell: ONE rounded small shield made of amber-orange curled flame, a warm ivory heart-shaped center, a gentle sleepy face in the warm core, curled ember edges. Clearly a protective shield shape, not a fireball or blue metal shield. Orange, ochre, warm cream; no hand. Reference image shows cartoon ink language only. Generate a NEW single icon on actual transparency.",
+      "revision_prompt": "EDIT TARGET Image 1. STYLE REFERENCE Image 2. Redraw target as a simple 1930s rubber-hose cartoon spell icon matching reference's bold black outlines and flat cel colors. Remove all painterly texture, gradients, glows and soft airbrush shading. Preserve the protective orange flame shield with a cream heart-shaped center and gentle sleepy smile. Make outer shield outline and every major flame curl thick BLACK, use only 4 flat colors black, orange, ochre and cream. Simpler large shapes. Keep one centered icon, no text, no frame, genuine transparent background, clean alpha. Do not add objects, keep readable at 56px.",
+      "style_reference": "art/ui/pieces/icon_fire.png"
+    },
+    {
+      "id": "wildfire",
+      "kind": "spell_icon",
+      "file": "art/icons/spells/wildfire.png",
+      "prompt": "undefined SUBJECT: Leaping fire spell: ONE lively orange flame with one big pie-cut eye and a wide mischievous grin, two thin bendy black rubber-hose legs wearing oversized ivory shoes, caught in a springing zigzag leap toward upper-right. Compact icon composition with only two short curved motion strokes, no ground. This icon must have visibly springy cartoon legs, distinct from round fireball, arrow and hand. Reference image shows cartoon ink language only. Generate a NEW single icon on actual transparency.",
+      "revision_prompt": null,
+      "style_reference": "art/ui/pieces/icon_fire.png"
+    }
+  ]
+}

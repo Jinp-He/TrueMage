@@ -27,12 +27,10 @@ func build_deck() -> Array[CloudCard]:
 
 static func catalog() -> Array[CharacterData]:
 	return [
-		# 塑能法师：火焰箭 ac、护甲术 ccb、雷霆打击 bba，首尾相接成一圈：
-		# accbbac 里 ac → ccb → bba → ac 依次共用一个符文，四次触发。
-		CharacterData.new("evoker", "塑能法师", 30, ["fire_arrow", "thunder_strike", "armor"], [
+		CharacterData.new("evoker", "塑能法师", 30, ["kindle", "fire_arrow", "fireball", "shield"], [
 			["a", "blazing"], ["a", ""], ["a", ""],
 			["b", ""], ["b", ""],
-			["cb", ""], ["bb", ""], ["ba", ""],
+			["cb", ""], ["d", ""], ["d", ""],
 			["c", "sturdy"], ["c", ""], ["c", ""],
 			["cc", ""],
 		]),

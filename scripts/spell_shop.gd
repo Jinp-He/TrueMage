@@ -122,26 +122,11 @@ func _build_upgrade() -> void:
 				_rebuild())
 		add_child(UiKit.place(remove, Rect2(tile_rect.position + Vector2(0, 58), Vector2(tile_rect.size.x, 34))))
 	if not _selected.can_remove_rune():
-		var reason := "首尾型咒式不能移除符文" if _selected.rule == SpellData.BOOKEND else "咒式已经不能再缩短"
+		var reason := "咒式已经不能再缩短"
 		add_child(UiKit.place(UiKit.centered(UiKit.label(reason, 19)), Rect2(570, 514, 532, 26)))
 
 	_build_rune_adder(_selected, column, 546, ADD_RUNE_COST, func() -> void: pass)
 
-	for i in _upgrade_hints().size():
-		add_child(UiKit.place(UiKit.centered(UiKit.label(_upgrade_hints()[i], 20)), Rect2(570, 726 + 32 * i, 532, 30)))
-
-
-func _upgrade_hints() -> Array[String]:
-	match _selected.rule:
-		SpellData.BOOKEND:
-			return ["首尾之间每夹一个符文，效果就多算一倍。", "强化提高每倍的数值。"]
-		SpellData.VARIETY:
-			return ["追加：需要更多种不同符文连在一起。", "移除：更容易凑出，效果降低。"]
-		SpellData.COUNT:
-			return ["这些符文在句中凑齐就触发，不必相连。", "追加符文更难凑齐，但收益更高。"]
-		SpellData.ABSENT:
-			return ["整句不含这些符文时触发。", "追加禁用符文更难满足，但收益更高。"]
-	return ["追加哪个符文效果都一样，区别在于更容易和谁连上。", "咒式越长越难拼，但触发一次的收益更高。"]
 
 
 # ---------------------------------------------------------------- 货架

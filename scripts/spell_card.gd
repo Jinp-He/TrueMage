@@ -23,10 +23,8 @@ func set_highlight(on: bool) -> void:
 
 func _build(tag: String) -> void:
 	var k := clampf(size.y / 160.0, 0.62, 1.0)
-	# 纸页左上角是线圈、右下角是卷角，九宫格留出这两块不拉伸。
-	_frame = UiKit.nine("card_spell_page", 40)
-	_frame.patch_margin_left = 130
-	_frame.patch_margin_top = 34
+	# Plain parchment keeps the spell name clear of decorative binding rings.
+	_frame = UiKit.nine("panel_parchment_plain", 22)
 	_frame.size = size
 	add_child(_frame)
 
@@ -54,10 +52,14 @@ func _build(tag: String) -> void:
 	add_child(UiKit.place(pattern, Rect2(text_x, top + line, text_w, line * 1.2)))
 
 	# 强化后效果描述可能变长，缩小字号直到放得下。
+	var effect_text := spell.effect_text()
+
 	var effect_size := int(23 * k)
-	while effect_size > 12 and UiKit.text_font().get_string_size(spell.effect_text(), HORIZONTAL_ALIGNMENT_LEFT, -1, effect_size).x > text_w - 40.0:
+	while effect_size > 12 and UiKit.text_font().get_string_size(effect_text, HORIZONTAL_ALIGNMENT_LEFT, -1, effect_size).x > text_w - 40.0:
 		effect_size -= 1
-	var effect := UiKit.label(spell.effect_text(), effect_size)
+	var effect := UiKit.label(effect_text, effect_size)
+	effect.mouse_filter = Control.MOUSE_FILTER_STOP
+	effect.tooltip_text = spell.effect_text()
 	add_child(UiKit.place(effect, Rect2(text_x, top + line * 2.1, text_w, line)))
 
 	if tag != "":
